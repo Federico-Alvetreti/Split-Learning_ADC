@@ -1,0 +1,31 @@
+# Default Configuration 
+defaults:
+  - comm: analogic
+  - dataset: flowers_102
+  - model: deit_tiny_patch16_224
+  - optimizer: adam
+  - schema: default
+  - _self_
+
+hyperparameters:
+  snr : 5.0 
+  split_index : 3
+
+# Set roots for results and dataset 
+core:
+  dataset_root: ./data
+  results_path: ./results
+
+hydra:
+  run:
+    dir: ${core.results_path}/first_thing
+
+  job:
+    chdir: No
+    config:
+      override_dirname:
+        exclude_keys: ['comm', 'dataset', 'model', 'optimizer', 'schema','split_index']
+        kv_sep: '='
+        item_sep: '__'
+
+

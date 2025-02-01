@@ -1,0 +1,48 @@
+[2025-01-31 16:41:52,174][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:41:53,098][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:41:53,122][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:52:29,375][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:52:29,534][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:52:29,539][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:52:52,880][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:52:53,019][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:52:53,023][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:54:09,036][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:54:09,195][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:54:09,202][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:55:16,449][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:55:16,604][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:55:16,610][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:57:08,080][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:57:08,225][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:57:08,230][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:58:05,420][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:58:05,589][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:58:05,593][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:58:26,169][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:58:26,380][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:58:26,389][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:58:53,120][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:58:53,253][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:58:53,258][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 16:59:48,000][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 16:59:48,154][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 16:59:48,163][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:00:33,091][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:00:33,226][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:00:33,235][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:01:02,354][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:01:02,513][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:01:02,517][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:01:23,727][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:01:23,901][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:01:23,907][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:13:19,663][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:13:19,832][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:13:19,836][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:14:08,757][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:14:08,889][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:14:08,893][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.
+[2025-01-31 17:19:55,025][timm.models._builder][INFO] - Loading pretrained weights from Hugging Face hub (timm/deit_tiny_patch16_224.fb_in1k)
+[2025-01-31 17:19:55,423][timm.models._hub][INFO] - [timm/deit_tiny_patch16_224.fb_in1k] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+[2025-01-31 17:19:55,431][timm.models._builder][INFO] - Missing keys (head.weight, head.bias) discovered while loading pretrained weights. This is expected if model is being adapted.

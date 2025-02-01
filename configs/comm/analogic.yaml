@@ -1,0 +1,14 @@
+channel:
+  _target_: comm_functions.Gaussian_Noise_Analogic_Channel
+  snr: ${hyperparameters.snr}
+
+encoder:
+  _target_: comm_functions.BaseRealToComplexNN
+  output_size: 0.5
+  n_layers: 3
+  normalize: True  
+  drop_last_activation: True  
+
+decoder:
+  _target_: comm_functions.ConcatComplexToRealNN
+  n_layers: 3
