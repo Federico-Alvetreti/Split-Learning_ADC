@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch 
 from torch import nn
 import os 
+import json 
 
 # Custom functions 
 from comm_functions import CommunicationPipeline
@@ -38,17 +39,18 @@ def main(cfg):
     # Build the communication pipeline 
 
     # Get encoder 
-    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
+    encoder = None #hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
 
     # Get channel 
     channel = hydra.utils.instantiate(cfg.comm.channel)
 
     # Get decoder 
-    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+    decoder = None #hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
 
     # Get pipeline 
     communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)
 
+    torch.autograd.set_detect_anomaly(True)
 
     # Build the communication model 
 
@@ -63,14 +65,14 @@ def main(cfg):
     comm_model = deepcopy(pretrained_model)
     comm_model.blocks = nn.Sequential(*blocks_before, communication_pipeline, *blocks_after)
 
-    # Prepare for training 
+    # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer,params=comm_model.parameters())
 
     # Train 
     results = training_schedule(comm_model, train_dataloader, test_dataloader, optimizer, epochs, device)
 
     # Get the current Hydra output directory
-    hydra_output_dir = os.getcwd()
+    hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
     # Define the results file path inside Hydra's directory
     results_file = os.path.join(hydra_output_dir, "training_results.json")

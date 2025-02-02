@@ -14,6 +14,9 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         self.snr = snr  # Single SNR value or range
         self.dims = dims  # Dimension for power calculation
 
+        # Register the backward hook
+        self.register_full_backward_hook(self._add_gradient_noise)
+
     def get_snr(self, batch_size: int, device: Union[str, torch.device] = "cpu"):
         """Returns a fixed or sampled SNR value."""
         if isinstance(self.snr, Sequence):  # If it's a range (tuple), sample uniformly
@@ -38,13 +41,28 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         
         if isinstance(snr, torch.Tensor):
             snr = snr.to(x.device)
-
+    
         # Compute mean signal power along the given dimensions
-        signal_power = torch.linalg.norm(x, ord=2, dim=self.dims, keepdim=True)
-        size = math.prod([x.size(d) for d in self.dims]) if isinstance(self.dims, Sequence) else x.size(self.dims)
-        signal_power /= size  # Normalize signal power
+        signal_power = torch.mean(x ** 2, dim=self.dims, keepdim=True)  
+        noisy_signal = self.apply_noise(x, signal_power, snr)  # Apply noise
 
-        return self.apply_noise(x, signal_power, snr)
+        return noisy_signal
+    
+    def _add_gradient_noise(self, module, grad_input, grad_output):
+        
+        """Backward hook that adds Gaussian noise to gradients."""
+        grad_output = grad_output[0]  # Extract the gradient tensor
+
+        # Compute power of the gradient
+        grad_power = torch.mean(grad_output ** 2, dim=self.dims, keepdim=True)
+
+        # Sample new SNR or use the same one
+        snr = self.get_snr(len(grad_output), grad_output.device)
+
+        # Apply noise
+        noisy_grad = self.apply_noise(grad_output, grad_power, snr)
+
+        return (noisy_grad,)  # Return as tuple to match expected format
     
 # Functions used to create encoder / decoder 
 def get_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=False, drop_last_activation=False):
