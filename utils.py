@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 
 
-
+# Standard training phase 
 def training_phase(model, train_data_loader, loss, optimizer, device):
 
   print("\nTraining phase: ")
@@ -45,10 +45,7 @@ def training_phase(model, train_data_loader, loss, optimizer, device):
 
   return average_train_loss, average_train_accuracy
 
-
-
-
-# This is the validation phase that will be used in the training schedule
+# Standard validation phase
 def validation_phase(model, val_data_loader, loss, device):
 
   print("Validation phase: ")
@@ -85,9 +82,7 @@ def validation_phase(model, val_data_loader, loss, device):
 
   return average_val_loss, average_val_accuracy
 
-
-
-
+# Standard training / validation cicle
 def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_epochs, device,  loss = torch.nn.CrossEntropyLoss()):
 
   # Initialize train losses and accuracies
