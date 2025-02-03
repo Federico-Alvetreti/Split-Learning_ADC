@@ -10,15 +10,16 @@ defaults:
 hyperparameters:
   snr:   100       # Sound to noise ratio 
   split_index : 3  # Where to split the network 
-
+  experiment_name : None 
 # Set roots for results and dataset 
 core:
   dataset_root: ./data
   results_path: ./results
+  plots_path : ./plots/${hyperparameters.experiment_name}
 
 hydra:
   run:
-    dir: ${core.results_path}/${hyperparameters.snr}
+    dir: ${core.results_path}/${hyperparameters.experiment_name}/${hyperparameters.snr}
 
   job:
     chdir: No

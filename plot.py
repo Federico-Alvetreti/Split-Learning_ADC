@@ -3,8 +3,20 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
+import hydra 
 
-def plot_metrics_vs_epochs(results_path="results", plots_path="plots"):  
+
+@hydra.main(config_path="configs",
+            version_base='1.2',
+            config_name="default")
+
+
+
+def plot_metrics_vs_epochs(cfg): 
+
+    results_path = cfg.core.results_path #fix this 
+    plots_path = cfg.core.plots_path
+     
     os.makedirs(plots_path, exist_ok=True)
     snr_folders = [str(i) for i in range(-10, 11)]  
     train_losses, train_accuracies, val_losses, val_accuracies = [], [], [], []
@@ -78,7 +90,3 @@ def plot_metrics_vs_snr(results_path="results", plots_path="plots/last_epoch"):
     plot_metric(snr_values, val_losses, "Validation Loss", "Validation Loss vs SNR", "val_loss_vs_snr.png", 'm')
     
     print("SNR-based plots saved in the 'plots/last_epoch' folder.")
-
-# Example usage
-# plot_metrics_vs_epochs()
-# plot_metrics_vs_snr()

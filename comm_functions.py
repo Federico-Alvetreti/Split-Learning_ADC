@@ -13,6 +13,7 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         assert snr is not None, "SNR must be specified."
         self.snr = snr  # Single SNR value or range
         self.dims = dims  # Dimension for power calculation
+        self.communication_cost = 0 # A value to track the size of everything this channel sends
 
         # Register the backward hook
         self.register_full_backward_hook(self._add_gradient_noise)
@@ -26,6 +27,10 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
 
     def apply_noise(self, x, signal_power, snr):
         """Applies Gaussian noise based on SNR."""
+
+        # Add the size of x at the communcation cost 
+        self.communication_cost += sum(x.shape)
+
         if isinstance(snr, torch.Tensor):
             snr = snr.view([-1] + [1] * (x.ndim - 1))  # Expand for broadcasting
 
@@ -37,13 +42,17 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
 
     def forward(self, x: torch.Tensor, snr=None):
         """Adds Gaussian noise to the input tensor based on the given SNR."""
+
+        # Get snr value
         snr = snr if snr is not None else self.get_snr(len(x), x.device)
         
         if isinstance(snr, torch.Tensor):
             snr = snr.to(x.device)
     
-        # Compute mean signal power along the given dimensions
+        # Compute signal power along the given dimensions
         signal_power = torch.mean(x ** 2, dim=self.dims, keepdim=True)  
+
+        # Apply noise
         noisy_signal = self.apply_noise(x, signal_power, snr)  # Apply noise
 
         return noisy_signal
@@ -53,11 +62,11 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         """Backward hook that adds Gaussian noise to gradients."""
         grad_output = grad_output[0]  # Extract the gradient tensor
 
-        # Compute power of the gradient
-        grad_power = torch.mean(grad_output ** 2, dim=self.dims, keepdim=True)
-
-        # Sample new SNR or use the same one
+        # Get snr value
         snr = self.get_snr(len(grad_output), grad_output.device)
+
+        # Compute signal power along the given dimensions
+        grad_power = torch.mean(grad_output ** 2, dim=self.dims, keepdim=True)
 
         # Apply noise
         noisy_grad = self.apply_noise(grad_output, grad_power, snr)

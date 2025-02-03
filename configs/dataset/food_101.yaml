@@ -24,6 +24,6 @@ test:
         size: [224, 224]
       - _target_: torchvision.transforms.ToTensor
   root: ${core.dataset_root}
-  download: No
+  download: Yes
 
 num_classes : 101 
