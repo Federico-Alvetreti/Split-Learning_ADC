@@ -8,7 +8,7 @@ import json
 
 # Custom functions 
 from comm_functions import CommunicationPipeline
-from utils import training_schedule
+from utils import training_schedule, train_communication_pipeline
 
 @hydra.main(config_path="configs",
             version_base='1.2',
@@ -18,8 +18,6 @@ def main(cfg):
 
     # Set device  
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    print(device)
     
     # Get hyperparameters 
     batch_size = cfg.schema.batch_size
@@ -39,21 +37,31 @@ def main(cfg):
     # Build the communication pipeline 
 
     # Get encoder 
-    encoder = None #hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
+    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
 
     # Get channel 
     channel = hydra.utils.instantiate(cfg.comm.channel)
 
     # Get decoder 
-    decoder = None #hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
 
     # Get pipeline 
     communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)
 
-    torch.autograd.set_detect_anomaly(True)
+    # Initialize communication model  
+    comm_model = deepcopy(pretrained_model)
 
-    # Build the communication model 
+    # Train the encoder / decoder 
+    _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
+                                 hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
+                                 hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
+                                 20, device)
 
+
+    # Freeze communication pipeline parameters by setting requires_grad=False
+    for param in communication_pipeline.parameters():
+        param.requires_grad = False
+        
     # Get the split index 
     split_index = cfg.hyperparameters.split_index
 
@@ -62,7 +70,6 @@ def main(cfg):
     blocks_after = pretrained_model.blocks[split_index:]
     
     # Build the model 
-    comm_model = deepcopy(pretrained_model)
     comm_model.blocks = nn.Sequential(*blocks_before, communication_pipeline, *blocks_after)
 
     # Get optimizer 

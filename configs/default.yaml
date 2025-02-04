@@ -1,6 +1,6 @@
 # Default Configurations 
 defaults:
-  - comm: just_channel
+  - comm: full_analogic_channel
   - dataset: flowers_102
   - model: deit_tiny_patch16_224
   - optimizer: adam
@@ -8,9 +8,9 @@ defaults:
   - _self_
 
 hyperparameters:
-  snr:   100       # Sound to noise ratio 
+  snr:   5       # Sound to noise ratio 
   split_index : 3  # Where to split the network 
-  experiment_name : None 
+  experiment_name : training_channel 
 # Set roots for results and dataset 
 core:
   dataset_root: ./data

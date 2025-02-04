@@ -74,7 +74,7 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         return (noisy_grad,)  # Return as tuple to match expected format
     
 # Functions used to create encoder / decoder 
-def get_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=False, drop_last_activation=False):
+def get_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, drop_last_activation=False):
     if isinstance(output_size, float):
         output_size = max(int(input_size * output_size), 1)
 
@@ -88,8 +88,6 @@ def get_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=False, 
 
     if drop_last_activation:
         model = model[:-1]
-    # if invert:
-    #     model = model[::-1]
 
     model = nn.Sequential(*model)
 
@@ -105,7 +103,7 @@ def get_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=False, 
 
     return shapes[-1], models
 
-def get_cnn_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=False, drop_last_activation=True):
+def get_cnn_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, drop_last_activation=True):
     def get_sizes(os, ins, inverse=False):
         mn = (np.inf, -1, -1)
         for i in range(1, 12):
@@ -153,9 +151,6 @@ def get_cnn_layers(input_size, output_size=1.0, n_layers=2, n_copy=1, invert=Fal
     if drop_last_activation:
         model = model[:-1]
 
-    # if invert:
-    #     model = model[::-1]
-
     model = nn.Sequential(*model)
 
     models = []
@@ -185,11 +180,11 @@ class BaseRealToComplexNN(nn.Module):
         if isinstance(input_size, tuple):
             output_size, (cc, rr) = get_cnn_layers(input_size=input_size, output_size=output_size,
                                                    n_layers=n_layers, drop_last_activation=drop_last_activation,
-                                                   n_copy=2, invert=False)
+                                                   n_copy=2)
         else:
             output_size, (cc, rr) = get_layers(input_size=input_size, output_size=output_size,
                                                n_layers=n_layers, drop_last_activation=drop_last_activation,
-                                               n_copy=2, invert=False)
+                                               n_copy=2)
 
         self.r_fl, self.c_fl = rr, cc
 
@@ -234,12 +229,12 @@ class ConcatComplexToRealNN(nn.Module):
             input_size = (input_size[0]*2, input_size[1], input_size[2])
             output_size, (cc, _) = get_cnn_layers(input_size=input_size, output_size=output_size[:2],
                                                   n_layers=n_layers, drop_last_activation=drop_last_activation,
-                                                  n_copy=2, invert=False)
+                                                  n_copy=2)
         else:
             self.cdim = -1
             output_size, (cc, _) = get_layers(input_size=input_size * 2, output_size=output_size,
                                               n_layers=n_layers, drop_last_activation=drop_last_activation,
-                                              n_copy=2, invert=False)
+                                              n_copy=2)
 
         self.d_f = cc
         self.transpose = transpose
