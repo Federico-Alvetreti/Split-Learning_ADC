@@ -154,7 +154,7 @@ def train_communication_pipeline(model, communication_pipeline,
     for layer in model.modules():
         if isinstance(layer, timm.models.vision_transformer.Block):
             layer.register_forward_hook(activation_hook)
-            layer.register_backward_hook(gradient_hook)
+            # layer.register_backward_hook(gradient_hook)
 
 
     for _ in range(n_epochs):
@@ -211,27 +211,28 @@ def train_communication_pipeline(model, communication_pipeline,
         comm_train_loss = 0
         
         # For every gradient / activation in the list 
-        for x in communication_tensors:
+        for i in range(5):
+          for x in communication_tensors:
 
-            # Reconstructed signal 
-            reconstructed = communication_pipeline(x)
+              # Reconstructed signal 
+              reconstructed = communication_pipeline(x)
 
-            # MSE loss 
-            comm_batch_loss = comm_loss(reconstructed, x)
+              # MSE loss 
+              comm_batch_loss = comm_loss(reconstructed, x)
 
-            # Backpropagation 
-            comm_batch_loss.backward()
+              # Backpropagation 
+              comm_batch_loss.backward()
 
-            # Update and zero out previous gradients
-            comm_optimizer.step()
-            comm_optimizer.zero_grad()
+              # Update and zero out previous gradients
+              comm_optimizer.step()
+              comm_optimizer.zero_grad()
 
-            # Store loss 
-            comm_train_loss += comm_batch_loss.item() / batch_size 
+              # Store loss 
+              comm_train_loss += comm_batch_loss.item() / batch_size
 
 
       # Compute average loss and accuracy
-      average_train_comm_loss = comm_train_loss / (len(train_data_loader) * len(communication_tensors))
+      average_train_comm_loss = comm_train_loss / (len(train_data_loader) * len(communication_tensors) * 5)
       average_train_loss = train_loss / len(train_data_loader)
       average_train_accuracy = train_accuracy / len(train_data_loader)
 

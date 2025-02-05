@@ -13,7 +13,6 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         assert snr is not None, "SNR must be specified."
         self.snr = snr  # Single SNR value or range
         self.dims = dims  # Dimension for power calculation
-        self.communication_cost = 0 # A value to track the size of everything this channel sends
 
     def get_snr(self, batch_size: int, device: Union[str, torch.device] = "cpu"):
         """Returns a fixed or sampled SNR value."""
@@ -24,9 +23,6 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
 
     def apply_noise(self, x, signal_power, snr):
         """Applies Gaussian noise based on SNR."""
-
-        # Add the size of x at the communcation cost 
-        self.communication_cost += sum(x.shape)
 
         if isinstance(snr, torch.Tensor):
             snr = snr.view([-1] + [1] * (x.ndim - 1))  # Expand for broadcasting
