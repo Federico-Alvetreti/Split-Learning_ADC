@@ -129,11 +129,6 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
 
 
 
-
-
-
-
-
 def train_communication_pipeline(model, communication_pipeline,
                                  train_data_loader, val_data_loader, 
                                  model_optimizer, comm_optimizer,
@@ -163,6 +158,8 @@ def train_communication_pipeline(model, communication_pipeline,
 
 
     for _ in range(n_epochs):
+
+      print("\n\nEPOCH " + str(_))
        
       # Training original model 
       print("TRAINING PHASE: ")
@@ -284,14 +281,14 @@ def train_communication_pipeline(model, communication_pipeline,
         # For every gradient / activation 
         for x in communication_tensors:
 
-            # Reconstructed signal 
-            reconstructed = communication_pipeline(x)
+          # Reconstructed signal 
+          reconstructed = communication_pipeline(x)
 
-            # MSE loss 
-            comm_batch_loss = comm_loss(reconstructed, x)
+          # MSE loss 
+          comm_batch_loss = comm_loss(reconstructed, x)
 
-            # Store loss 
-            comm_val_loss += comm_batch_loss.item() / batch_size 
+          # Store loss 
+          comm_val_loss += comm_batch_loss.item() / batch_size 
 
 
       # Compute average loss and accuracy

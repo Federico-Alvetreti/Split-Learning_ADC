@@ -51,11 +51,11 @@ def main(cfg):
     # Initialize communication model  
     comm_model = deepcopy(pretrained_model)
 
-    # Train the encoder / decoder 
-    _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
-                                 hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
-                                 hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
-                                 20, device)
+    # # Train the encoder / decoder 
+    # _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
+    #                              hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
+    #                              hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
+    #                              20, device)
 
 
     # Freeze communication pipeline parameters by setting requires_grad=False
@@ -69,9 +69,18 @@ def main(cfg):
     blocks_before = pretrained_model.blocks[:split_index]
     blocks_after = pretrained_model.blocks[split_index:]
     
+    # Impose the gradient to pass trough the communcation pipeline
+    def apply_gradient_pipeline(module, grad_input, grad_output):
+
+        # Apply the pipeline
+        grad_input_with_pipeline = communication_pipeline(grad_input[0])
+        return (grad_input_with_pipeline,)
+    
+    blocks_after[0].register_backward_hook(apply_gradient_pipeline)
+
     # Build the model 
     comm_model.blocks = nn.Sequential(*blocks_before, communication_pipeline, *blocks_after)
-
+    
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer,params=comm_model.parameters())
 
