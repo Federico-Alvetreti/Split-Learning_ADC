@@ -37,26 +37,26 @@ def main(cfg):
     # Build the communication pipeline 
 
     # Get encoder 
-    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
+    encoder = None #hydra.utils.instantiate(cfg.comm.encoder, input_size= pretrained_model.num_features)
 
     # Get channel 
     channel = hydra.utils.instantiate(cfg.comm.channel)
 
     # Get decoder 
-    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+    decoder = None #hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
 
     # Get pipeline 
     communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)
 
-    # Train the encoder / decoder 
-    _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
-                                 hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
-                                 hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
-                                 20, device)
+    # # Train the encoder / decoder 
+    # _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
+    #                              hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
+    #                              hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
+    #                              20, device)
     
-    del pretrained_model  # Delete the model
-    del _                 # Delete the results 
-    torch.cuda.empty_cache()  # Free up GPU memory
+    # del pretrained_model  # Delete the model
+    # del _                 # Delete the results 
+    # torch.cuda.empty_cache()  # Free up GPU memory
 
 
     # Freeze communication pipeline parameters by setting requires_grad=False
@@ -69,24 +69,27 @@ def main(cfg):
     # Initialize communication model  
     comm_model = hydra.utils.instantiate(cfg.model).to(device)
 
-    # Get the blocks before and after the communication pipeline 
-    blocks_before = comm_model.blocks[:split_index]
-    blocks_after = comm_model.blocks[split_index:]
+    # Apply communcation pipeline to both the forward and the backward
 
-    # Build the model 
-    comm_model.blocks = nn.Sequential(*blocks_before, communication_pipeline, *blocks_after)
+    # Impose the gradient to pass trough the communcation pipeline
+    def apply_gradient_pipeline(module, grad_output):
+
+        # Apply the pipeline
+        grad_output_with_pipeline = communication_pipeline(grad_output[0])
+        
+        # Must return as a Tuple so the ","
+        return (grad_output_with_pipeline, )
     
-    # # Impose the gradient to pass trough the communcation pipeline
-    # def apply_gradient_pipeline(module, grad_output):
+    def apply_forward_pipeline(module, args, output):
 
-    #     # Apply the pipeline
-    #     grad_output_with_pipeline = communication_pipeline(grad_output[0])
+        # Apply the pipeline
+        output_with_pipeline = communication_pipeline(output)
 
-    #     return (grad_output_with_pipeline, )
-
-    # # Register the hook on the ouptut gradient of the block before the channel 
-    # comm_model.blocks[split_index - 1].register_full_backward_pre_hook(apply_gradient_pipeline)
-
+        return output_with_pipeline
+    
+    # Register the hooks 
+    comm_model.blocks[split_index - 1].register_forward_hook(apply_forward_pipeline)
+    comm_model.blocks[split_index - 1].register_full_backward_pre_hook(apply_gradient_pipeline)
 
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer,params=comm_model.parameters())

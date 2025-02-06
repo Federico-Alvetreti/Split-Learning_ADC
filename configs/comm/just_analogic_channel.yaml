@@ -3,7 +3,7 @@ channel:
   snr: ${hyperparameters.snr}
 
 encoder:
-  _target_: None
+  _target_: null
 
 decoder:
-  _target_: None
+  _target_: null

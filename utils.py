@@ -154,7 +154,7 @@ def train_communication_pipeline(model, communication_pipeline,
     for layer in model.modules():
         if isinstance(layer, timm.models.vision_transformer.Block):
             layer.register_forward_hook(activation_hook)
-            # layer.register_backward_hook(gradient_hook)
+            layer.register_backward_hook(gradient_hook)
 
 
     for _ in range(n_epochs):
@@ -211,7 +211,7 @@ def train_communication_pipeline(model, communication_pipeline,
         comm_train_loss = 0
         
         # For every gradient / activation in the list 
-        for i in range(5):
+        for i in range(20):
           for x in communication_tensors:
 
               # Reconstructed signal 
@@ -232,7 +232,7 @@ def train_communication_pipeline(model, communication_pipeline,
 
 
       # Compute average loss and accuracy
-      average_train_comm_loss = comm_train_loss / (len(train_data_loader) * len(communication_tensors) * 5)
+      average_train_comm_loss = comm_train_loss / (len(train_data_loader) * len(communication_tensors) * 20)
       average_train_loss = train_loss / len(train_data_loader)
       average_train_accuracy = train_accuracy / len(train_data_loader)
 
