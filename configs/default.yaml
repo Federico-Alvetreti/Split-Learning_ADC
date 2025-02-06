@@ -1,6 +1,6 @@
 # Default Configurations 
 defaults:
-  - comm: just_analogic_channel
+  - comm: full_analogic_channel
   - dataset: flowers_102
   - model: deit_tiny_patch16_224
   - optimizer: adam

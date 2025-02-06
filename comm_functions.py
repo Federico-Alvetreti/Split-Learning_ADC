@@ -228,8 +228,23 @@ class ConcatComplexToRealNN(nn.Module):
             x = x.permute(0, 2, 1)
 
         return x
-    
-# Whole process 
+
+
+
+class NormalizeDenormalizeModule(nn.Module):
+    def __init__(self):
+        super(NormalizeDenormalizeModule, self).__init__()
+
+    def normalize(self, x):
+        """Normalize the tensor by its mean and std."""
+        mean = x.mean()
+        std = x.std()
+        return (x - mean) / (std + 1e-8), mean, std  # Return mean and std for denormalization
+
+    def denormalize(self, x, mean, std):
+        """Denormalize the tensor."""
+        return x * std + mean
+
 class CommunicationPipeline(nn.Module):
     def __init__(self, encoder, channel, decoder, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -237,14 +252,40 @@ class CommunicationPipeline(nn.Module):
         self.encoder = encoder if encoder is not None else lambda x: x
         self.decoder = decoder if decoder is not None else lambda x: x
         self.channel = channel if channel is not None else lambda x: x
+        self.norm_denorm = NormalizeDenormalizeModule()  # Add the normalization/denormalization module
 
     def forward(self, x, snr=None):
         self.input = x
 
-        x = self.encoder(x)
+        # Normalize input before passing through the pipeline
+        normalized_x, mean, std = self.norm_denorm.normalize(x)
 
+        # Pass through encoder, channel, and decoder
+        x = self.encoder(normalized_x)
         x = self.channel(x)
-
         x = self.decoder(x)
 
+        # Denormalize output after processing
+        x = self.norm_denorm.denormalize(x, mean, std)
+
         return x
+    
+# # Whole process 
+# class CommunicationPipeline(nn.Module):
+#     def __init__(self, encoder, channel, decoder, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+
+#         self.encoder = encoder if encoder is not None else lambda x: x
+#         self.decoder = decoder if decoder is not None else lambda x: x
+#         self.channel = channel if channel is not None else lambda x: x
+
+#     def forward(self, x, snr=None):
+#         self.input = x
+
+#         x = self.encoder(x)
+
+#         x = self.channel(x)
+
+#         x = self.decoder(x)
+
+#         return x

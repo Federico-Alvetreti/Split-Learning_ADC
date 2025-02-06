@@ -128,11 +128,15 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
   return results
 
 
-
-def train_communication_pipeline(model, communication_pipeline,
-                                 train_data_loader, val_data_loader, 
-                                 model_optimizer, comm_optimizer,
-                                 n_epochs, device, loss = torch.nn.CrossEntropyLoss()):
+def train_communication_pipeline(model,
+                                forward_communication_pipeline,
+                                backward_communication_pipeline,
+                                model_optimizer,
+                                forward_communication_optimizer,
+                                backward_communication_optimizer,
+                                split_index, k,
+                                train_data_loader, val_data_loader, 
+                                n_epochs, device, loss = torch.nn.CrossEntropyLoss()):
     
     
     comm_loss = torch.nn.MSELoss()
@@ -145,21 +149,19 @@ def train_communication_pipeline(model, communication_pipeline,
 
     # Functions to store activations and gradients
     def activation_hook(module, input, output):
-        communication_tensors.append(output.detach())
+        activations.append(output.detach())
     
-    def gradient_hook(module, grad_input, grad_output):
-        communication_tensors.append(grad_output[0].detach())
+    def gradient_hook(module, grad_output):
+        gradients.append(grad_output[0].detach())
     
     # Register hooks on model layers
-    for layer in model.modules():
-        if isinstance(layer, timm.models.vision_transformer.Block):
-            layer.register_forward_hook(activation_hook)
-            layer.register_backward_hook(gradient_hook)
+    model.blocks[split_index -1].register_forward_hook(activation_hook)
+    model.blocks[split_index -1].register_full_backward_pre_hook(gradient_hook)
 
 
     for _ in range(n_epochs):
 
-      print("\n\nEPOCH " + str(_))
+      print("\n\nEPOCH " + str(_ + 1))
        
       # Training original model 
       print("TRAINING PHASE: ")
@@ -178,7 +180,8 @@ def train_communication_pipeline(model, communication_pipeline,
         batch_size = batch[0].shape[0]
         
         # List where to store activations and gradients
-        communication_tensors = []
+        activations = []
+        gradients = []
 
         # Get input and labels from batch
         batch_input = batch[0].to(device)
@@ -188,7 +191,7 @@ def train_communication_pipeline(model, communication_pipeline,
         batch_predictions = model(batch_input)
 
         # Get batch loss and accuracy
-        batch_loss = loss(batch_predictions, batch_labels) / batch_size
+        batch_loss = loss(batch_predictions, batch_labels)
         batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_size
 
         # Store them
@@ -205,34 +208,64 @@ def train_communication_pipeline(model, communication_pipeline,
         # Training commmunication pipeline 
 
         # Set the communication pipeline in training mode 
-        communication_pipeline.train()
-        
+        forward_communication_pipeline.train()
+        backward_communication_pipeline.train()
+
         # Initialize train loss 
-        comm_train_loss = 0
+        forward_comm_train_loss = 0.0
+        backward_comm_train_loss = 0.0
         
         # For every gradient / activation in the list 
-        for i in range(20):
-          for x in communication_tensors:
+        for i in range(k):
+
+          for x in activations:
+              
+
+              mean = x.mean()
+              std = x.std()
+              x = (x - mean) / (std + 1e-8)
 
               # Reconstructed signal 
-              reconstructed = communication_pipeline(x)
+              reconstructed = forward_communication_pipeline(x)
 
               # MSE loss 
-              comm_batch_loss = comm_loss(reconstructed, x)
+              forward_comm_batch_loss = comm_loss(reconstructed, x)
 
               # Backpropagation 
-              comm_batch_loss.backward()
+              forward_comm_batch_loss.backward()
 
               # Update and zero out previous gradients
-              comm_optimizer.step()
-              comm_optimizer.zero_grad()
+              forward_communication_optimizer.step()
+              forward_communication_optimizer.zero_grad()
 
               # Store loss 
-              comm_train_loss += comm_batch_loss.item() / batch_size
+              forward_comm_train_loss += forward_comm_batch_loss.item()
 
+          for x in gradients:
+              
+              mean = x.mean()
+              std = x.std()
+              x = (x - mean) / (std + 1e-8)
+
+              # Reconstructed signal 
+              reconstructed = backward_communication_pipeline(x)
+
+              # MSE loss 
+              backward_comm_batch_loss = comm_loss(reconstructed, x)
+
+              # Backpropagation 
+              backward_comm_batch_loss.backward()
+
+              # Update and zero out previous gradients
+              backward_communication_optimizer.step()
+              backward_communication_optimizer.zero_grad()
+
+              # Store loss 
+              backward_comm_train_loss += backward_comm_batch_loss.item()
 
       # Compute average loss and accuracy
-      average_train_comm_loss = comm_train_loss / (len(train_data_loader) * len(communication_tensors) * 20)
+      average_train_forward_comm_loss = forward_comm_train_loss / (len(train_data_loader) * len(activations) * k)
+      average_train_backward_comm_loss = backward_comm_train_loss / (len(train_data_loader) * len(gradients) * k)
       average_train_loss = train_loss / len(train_data_loader)
       average_train_accuracy = train_accuracy / len(train_data_loader)
 
@@ -250,7 +283,9 @@ def train_communication_pipeline(model, communication_pipeline,
         batch_size = batch[0].shape[0]
         
         # List where to store activations and gradients
-        communication_tensors = []
+        activations = []
+        gradients = []
+
 
         # Get input and labels from batch
         batch_input = batch[0].to(device)
@@ -260,7 +295,7 @@ def train_communication_pipeline(model, communication_pipeline,
         batch_predictions = model(batch_input)
 
         # Get batch loss and accuracy
-        batch_loss = loss(batch_predictions, batch_labels) / batch_size
+        batch_loss = loss(batch_predictions, batch_labels) 
         batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_size
 
         # Backpropagation
@@ -273,38 +308,54 @@ def train_communication_pipeline(model, communication_pipeline,
         val_loss += batch_loss.cpu().item()
         val_accuracy += batch_accuracy
 
-        # Set the communication pipeline in evaluation mode 
-        communication_pipeline.eval()
-        
+
+        # Set the communication pipeline in training mode 
+        forward_communication_pipeline.eval()
+        backward_communication_pipeline.eval()
+
         # Initialize train loss 
-        comm_val_loss = 0
+        forward_comm_val_loss = 0.0
+        backward_comm_val_loss = 0.0
         
-        # For every gradient / activation 
-        for x in communication_tensors:
+        # For every gradient / activation in the list 
+        for i in range(k):
 
-          # Reconstructed signal 
-          reconstructed = communication_pipeline(x)
+          for x in activations:
+            
+              mean = x.mean()
+              std = x.std()
+              x = (x - mean) / (std + 1e-8)
 
-          # MSE loss 
-          comm_batch_loss = comm_loss(reconstructed, x)
+              # Reconstructed signal 
+              reconstructed = forward_communication_pipeline(x)
 
-          # Store loss 
-          comm_val_loss += comm_batch_loss.item() / batch_size 
+              # MSE loss 
+              forward_comm_batch_loss = comm_loss(reconstructed, x)
 
+              # Store loss 
+              forward_comm_val_loss += forward_comm_batch_loss.item()
+
+          for x in gradients:
+              
+              mean = x.mean()
+              std = x.std()
+              x = (x - mean) / (std + 1e-8)
+
+              # Reconstructed signal 
+              reconstructed = backward_communication_pipeline(x)
+
+              # MSE loss 
+              backward_comm_batch_loss = comm_loss(reconstructed, x)
+
+              # Store loss 
+              backward_comm_val_loss += backward_comm_batch_loss.item()
 
       # Compute average loss and accuracy
-      average_val_comm_loss = comm_val_loss / (len(val_data_loader) * len(communication_tensors))
-      average_val_loss = val_loss / len(val_data_loader)
-      average_val_accuracy = val_accuracy / len(val_data_loader)
-      
+      average_val_forward_comm_loss = forward_comm_val_loss / (len(val_data_loader) * len(activations) * k)
+      average_val_backward_comm_loss = backward_comm_val_loss / (len(val_data_loader) * len(gradients) * k)
+      average_val_loss = train_loss / len(train_data_loader)
+      average_val_accuracy = train_accuracy / len(train_data_loader)
 
-      # Store results 
-      train_losses.append(average_train_loss)
-      train_accuracies.append(average_train_accuracy)
-      val_losses.append(average_val_loss)
-      val_accuracies.append(average_val_accuracy)
-      train_comm_losses.append(average_train_comm_loss)
-      val_comm_losses.append(average_val_comm_loss)
 
       # Print losses
       print("\nTrain loss: " + str(average_train_loss) + "; Val loss: " + str(average_val_loss))
@@ -313,9 +364,8 @@ def train_communication_pipeline(model, communication_pipeline,
       print("Train accuracy: " + str(average_train_accuracy) + "; Val accuracy: " + str(average_val_accuracy))
 
       # Print communication loss 
-      print("Train communication loss: " + str(average_train_comm_loss) + "; Val communication loss: " + str(average_val_comm_loss))
-
-
+      print("Train communication forward loss: " + str(average_train_forward_comm_loss) + "; Val communication forward loss: " + str(average_val_forward_comm_loss))
+      print("Train communication backward loss: " + str(average_train_backward_comm_loss) + "; Val communication backward loss: " + str(average_val_backward_comm_loss))
 
     results = {"Train losses" : train_losses,
              "Train accuracies" : train_accuracies,

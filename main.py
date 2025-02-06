@@ -37,34 +37,46 @@ def main(cfg):
     # Build the communication pipeline 
 
     # Get encoder 
-    encoder = None #hydra.utils.instantiate(cfg.comm.encoder, input_size= pretrained_model.num_features)
+    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size= pretrained_model.num_features) if cfg.comm.encoder else None
 
     # Get channel 
     channel = hydra.utils.instantiate(cfg.comm.channel)
 
     # Get decoder 
-    decoder = None #hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features) if cfg.comm.decoder else None
 
-    # Get pipeline 
-    communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)
-
-    # # Train the encoder / decoder 
-    # _ = train_communication_pipeline(pretrained_model, communication_pipeline, train_dataloader, test_dataloader,
-    #                              hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters()),
-    #                              hydra.utils.instantiate(cfg.optimizer,params=communication_pipeline.parameters()),
-    #                              20, device)
-    
-    # del pretrained_model  # Delete the model
-    # del _                 # Delete the results 
-    # torch.cuda.empty_cache()  # Free up GPU memory
+    # Get pipelines 
+    forward_communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)
+    backward_communication_pipeline = deepcopy(forward_communication_pipeline)
 
 
-    # Freeze communication pipeline parameters by setting requires_grad=False
-    for param in communication_pipeline.parameters():
-        param.requires_grad = False
+    # Get optimizers
+    forward_communication_optimizer = hydra.utils.instantiate(cfg.optimizer,params=forward_communication_pipeline.parameters())
+    backward_communication_optimizer = hydra.utils.instantiate(cfg.optimizer,params=backward_communication_pipeline.parameters())
+    pretrained_model_optimizer =  hydra.utils.instantiate(cfg.optimizer,params=pretrained_model.parameters())
 
     # Get the split index 
     split_index = cfg.hyperparameters.split_index
+
+    # Train the encoder / decoder 
+    _ =  train_communication_pipeline(pretrained_model,
+                                forward_communication_pipeline,
+                                backward_communication_pipeline,
+                                pretrained_model_optimizer,
+                                forward_communication_optimizer,
+                                backward_communication_optimizer,
+                                split_index, 100,
+                                train_dataloader, test_dataloader, 
+                                20, device, loss = torch.nn.CrossEntropyLoss())
+
+
+    
+    
+    del pretrained_model  # Delete the model
+    del _                 # Delete the results 
+    torch.cuda.empty_cache()  # Free up GPU memory
+
+
 
     # Initialize communication model  
     comm_model = hydra.utils.instantiate(cfg.model).to(device)
@@ -75,7 +87,7 @@ def main(cfg):
     def apply_gradient_pipeline(module, grad_output):
 
         # Apply the pipeline
-        grad_output_with_pipeline = communication_pipeline(grad_output[0])
+        grad_output_with_pipeline = backward_communication_pipeline(grad_output[0])
         
         # Must return as a Tuple so the ","
         return (grad_output_with_pipeline, )
@@ -83,7 +95,7 @@ def main(cfg):
     def apply_forward_pipeline(module, args, output):
 
         # Apply the pipeline
-        output_with_pipeline = communication_pipeline(output)
+        output_with_pipeline = forward_communication_pipeline(output)
 
         return output_with_pipeline
     
