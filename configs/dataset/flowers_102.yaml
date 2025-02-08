@@ -25,5 +25,6 @@ test:
         size: [224, 224]
   root: ${core.dataset_root}
   download: false
-
+  
+name : flowers-102
 num_classes : 102 

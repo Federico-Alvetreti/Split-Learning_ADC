@@ -26,4 +26,5 @@ test:
   root: ${core.dataset_root}
   download: Yes
 
+name : food-101
 num_classes : 101 

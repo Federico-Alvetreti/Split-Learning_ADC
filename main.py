@@ -30,7 +30,7 @@ def main(cfg):
     test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
 
     # Initialize  model  
-    comm_model = hydra.utils.instantiate(cfg.model)
+    comm_model = hydra.utils.instantiate(cfg.model).to(device)
 
     # Apply method 
     comm_model = hydra.utils.call(cfg.method, model=comm_model, cfg = cfg ).to(device)
