@@ -5,12 +5,14 @@ defaults:
   - model: deit_tiny_patch16_224
   - optimizer: adam
   - schema : default
+  - method : send_raw_data_baseline
   - _self_
 
 hyperparameters:
   snr:   10       # Sound to noise ratio 
   split_index : 3  # Where to split the network 
-  experiment_name : training_channel 
+  experiment_name : ${method._target_}
+
 # Set roots for results and dataset 
 core:
   dataset_root: ./data

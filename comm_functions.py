@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import math
 from copy import deepcopy
 from typing import Union, Tuple, Sequence
 import numpy as np
@@ -13,6 +12,7 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         assert snr is not None, "SNR must be specified."
         self.snr = snr  # Single SNR value or range
         self.dims = dims  # Dimension for power calculation
+        self.total_communication = 0
 
     def get_snr(self, batch_size: int, device: Union[str, torch.device] = "cpu"):
         """Returns a fixed or sampled SNR value."""
@@ -35,6 +35,9 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
 
     def forward(self, x: torch.Tensor, snr=None):
         """Adds Gaussian noise to the input tensor based on the given SNR."""
+        
+        # Add the total communication cost 
+        self.total_communication += torch.prod(torch.tensor(x.size())).item()
 
         # Get snr value
         snr = snr if snr is not None else self.get_snr(len(x), x.device)
@@ -229,8 +232,6 @@ class ConcatComplexToRealNN(nn.Module):
 
         return x
 
-
-
 class NormalizeDenormalizeModule(nn.Module):
     def __init__(self):
         super(NormalizeDenormalizeModule, self).__init__()
@@ -270,22 +271,3 @@ class CommunicationPipeline(nn.Module):
 
         return x
     
-# # Whole process 
-# class CommunicationPipeline(nn.Module):
-#     def __init__(self, encoder, channel, decoder, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#         self.encoder = encoder if encoder is not None else lambda x: x
-#         self.decoder = decoder if decoder is not None else lambda x: x
-#         self.channel = channel if channel is not None else lambda x: x
-
-#     def forward(self, x, snr=None):
-#         self.input = x
-
-#         x = self.encoder(x)
-
-#         x = self.channel(x)
-
-#         x = self.decoder(x)
-
-#         return x

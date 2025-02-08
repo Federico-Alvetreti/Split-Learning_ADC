@@ -1,9 +1,0 @@
-channel:
-  _target_: comm_functions.Gaussian_Noise_Analogic_Channel
-  snr: ${hyperparameters.snr}
-
-encoder:
-  _target_: null
-
-decoder:
-  _target_: null

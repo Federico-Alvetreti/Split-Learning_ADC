@@ -57,24 +57,33 @@ def plot_metrics_vs_epochs(cfg):
     
     print("Epoch-based plots saved in the 'plots' folder.")
 
-def plot_metrics_vs_snr(results_path="results", plots_path="plots/last_epoch"):  
+
+def plot_metrics_vs_snr(results_path="results", plots_path="plots/baselines"):  
     os.makedirs(plots_path, exist_ok=True)
-    snr_values, train_losses, train_accuracies, val_losses, val_accuracies = [], [], [], [], []
     
-    for snr in range(-10, 11):
-        json_file = os.path.join(results_path, str(snr), "training_results.json")
-        if os.path.exists(json_file):
-            with open(json_file, 'r') as f:
-                data = json.load(f)
-            snr_values.append(snr)
-            train_losses.append(data["Train losses"][-1])
-            train_accuracies.append(data["Train accuracies"][-1])
-            val_losses.append(data["Val losses"][-1])
-            val_accuracies.append(data["Val accuracies"][-1])
+    experiments = [d for d in os.listdir(results_path) if os.path.isdir(os.path.join(results_path, d))]
     
-    def plot_metric(x, y, ylabel, title, filename, color):
+    metrics = {}
+    
+    for exp in experiments:
+        metrics[exp] = {"snr_values": [], "train_losses": [], "train_accuracies": [], "val_losses": [], "val_accuracies": [], "comm_costs": []}
+        
+        for snr in range(-10, 11):
+            json_file = os.path.join(results_path, exp, str(snr), "training_results.json")
+            if os.path.exists(json_file):
+                with open(json_file, 'r') as f:
+                    data = json.load(f)
+                metrics[exp]["snr_values"].append(snr)
+                metrics[exp]["train_losses"].append(data["Train losses"][-1])
+                metrics[exp]["train_accuracies"].append(data["Train accuracies"][-1])
+                metrics[exp]["val_losses"].append(data["Val losses"][-1])
+                metrics[exp]["val_accuracies"].append(data["Val accuracies"][-1])
+                metrics[exp]["comm_costs"].append(data["Communication cost"])
+    
+    def plot_metric(y_key, ylabel, title, filename, colors):
         plt.figure(figsize=(10, 6))
-        plt.plot(x, y, marker='o', label=title, color=color)
+        for i, (exp, data) in enumerate(metrics.items()):
+            plt.plot(data["snr_values"], data[y_key], marker='o', label=exp, color=colors[i % len(colors)])
         plt.xlabel("SNR Value")
         plt.ylabel(ylabel)
         plt.title(title)
@@ -84,9 +93,13 @@ def plot_metrics_vs_snr(results_path="results", plots_path="plots/last_epoch"):
         plt.savefig(os.path.join(plots_path, filename))
         plt.close()
     
-    plot_metric(snr_values, train_accuracies, "Training Accuracy", "Training Accuracy vs SNR", "train_accuracy_vs_snr.png", 'b')
-    plot_metric(snr_values, train_losses, "Training Loss", "Training Loss vs SNR", "train_loss_vs_snr.png", 'r')
-    plot_metric(snr_values, val_accuracies, "Validation Accuracy", "Validation Accuracy vs SNR", "val_accuracy_vs_snr.png", 'g')
-    plot_metric(snr_values, val_losses, "Validation Loss", "Validation Loss vs SNR", "val_loss_vs_snr.png", 'm')
+    colors = ['b', 'r', 'g', 'm', 'c', 'y', 'k', 'orange', 'purple', 'brown']
     
-    print("SNR-based plots saved in the 'plots/last_epoch' folder.")
+    plot_metric("train_accuracies", "Training Accuracy", "Training Accuracy vs SNR", "train_accuracy_vs_snr.png", colors)
+    plot_metric("train_losses", "Training Loss", "Training Loss vs SNR", "train_loss_vs_snr.png", colors)
+    plot_metric("val_accuracies", "Validation Accuracy", "Validation Accuracy vs SNR", "val_accuracy_vs_snr.png", colors)
+    plot_metric("val_losses", "Validation Loss", "Validation Loss vs SNR", "val_loss_vs_snr.png", colors)
+    plot_metric("comm_costs", "Communication Cost", "Communication Cost vs SNR", "comm_cost_vs_snr.png", colors)
+    
+    print("SNR-based comparison plots saved in the 'plots/last_epoch' folder.")
+

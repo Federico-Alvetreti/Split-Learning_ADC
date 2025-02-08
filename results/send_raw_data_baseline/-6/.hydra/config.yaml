@@ -1,0 +1,67 @@
+comm:
+  channel:
+    _target_: comm_functions.Gaussian_Noise_Analogic_Channel
+    snr: ${hyperparameters.snr}
+  encoder:
+    _target_: comm_functions.BaseRealToComplexNN
+    output_size: 0.5
+    n_layers: 3
+    normalize: true
+    drop_last_activation: true
+  decoder:
+    _target_: comm_functions.ConcatComplexToRealNN
+    n_layers: 3
+dataset:
+  train:
+    _target_: torchvision.datasets.Flowers102
+    split: train
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.RandomCrop
+        size: 224
+        padding: 24
+      - _target_: torchvision.transforms.RandomHorizontalFlip
+      - _target_: torchvision.transforms.ToTensor
+    root: ${core.dataset_root}
+    download: false
+  test:
+    _target_: torchvision.datasets.Flowers102
+    split: val
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Resize
+        size:
+        - 224
+        - 224
+    root: ${core.dataset_root}
+    download: false
+  num_classes: 102
+model:
+  _target_: timm.create_model
+  model_name: deit_tiny_patch16_224.fb_in1k
+  pretrained: true
+  num_classes: ${dataset.num_classes}
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0001
+  eps: 1.0e-08
+  weight_decay: 0
+schema:
+  epochs: 20
+  batch_size: 128
+method:
+  _target_: methods.send_raw_data_baseline
+  _recursive_: false
+hyperparameters:
+  snr: -6
+  split_index: 3
+  experiment_name: ${method._target_}
+core:
+  dataset_root: ./data
+  results_path: ./results
+  plots_path: ./plots/${hyperparameters.experiment_name}
