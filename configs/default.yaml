@@ -5,7 +5,7 @@ defaults:
   - model: deit_tiny_patch16_224
   - optimizer: adam
   - schema : default
-  - method : split_learning_with_denoising_baseline
+  - method : only_forward_split_learning_baseline
   - _self_
 
 hyperparameters:

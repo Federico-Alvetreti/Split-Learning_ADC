@@ -34,7 +34,7 @@ def main(cfg):
 
     # Apply method 
     comm_model = hydra.utils.call(cfg.method, model=comm_model, cfg = cfg ).to(device)
-
+ 
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
 
