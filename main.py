@@ -7,19 +7,22 @@ import json
 # Custom functions 
 from utils import training_schedule
 
+# Hydra configuration 
 @hydra.main(config_path="configs",
             version_base='1.2',
             config_name="default")
 
-
 def main(cfg):
+
+    # Set seed for reproducibility 
+    torch.manual_seed(42) 
 
     # Set device  
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Get hyperparameters 
     batch_size = cfg.schema.batch_size
-    epochs = cfg.schema.epochs
+    epochs = cfg.schema.epochs 
 
     # Get datasets 
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
@@ -30,7 +33,7 @@ def main(cfg):
     test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
 
     # Initialize  model  
-    comm_model = hydra.utils.instantiate(cfg.model).to(device)
+    comm_model = hydra.utils.instantiate(cfg.model)
 
     # Apply method 
     comm_model = hydra.utils.call(cfg.method, model=comm_model, cfg = cfg ).to(device)

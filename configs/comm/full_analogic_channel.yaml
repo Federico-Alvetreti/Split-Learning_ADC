@@ -12,3 +12,5 @@ encoder:
 decoder:
   _target_: comm_functions.ConcatComplexToRealNN
   n_layers: 3
+
+channel_training_epochs: 100

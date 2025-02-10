@@ -3,6 +3,8 @@ from torch import nn
 from copy import deepcopy
 from typing import Union, Tuple, Sequence
 import numpy as np
+import hydra 
+from utils import training_schedule, load_pretrained_model
 
 # Analogic Gaussian Noise Channel 
 class Gaussian_Noise_Analogic_Channel(nn.Module):
@@ -253,21 +255,212 @@ class CommunicationPipeline(nn.Module):
         self.encoder = encoder if encoder is not None else lambda x: x
         self.decoder = decoder if decoder is not None else lambda x: x
         self.channel = channel if channel is not None else lambda x: x
-        self.norm_denorm = NormalizeDenormalizeModule()  # Add the normalization/denormalization module
+        # self.norm_denorm = NormalizeDenormalizeModule()  # Add the normalization/denormalization module
 
     def forward(self, x, snr=None):
-        self.input = x
+        # self.input = x
 
         # Normalize input before passing through the pipeline
-        normalized_x, mean, std = self.norm_denorm.normalize(x)
+        # normalized_x, mean, std = self.norm_denorm.normalize(x)
 
         # Pass through encoder, channel, and decoder
-        x = self.encoder(normalized_x)
+        x = self.encoder(x)
         x = self.channel(x)
         x = self.decoder(x)
 
         # Denormalize output after processing
-        x = self.norm_denorm.denormalize(x, mean, std)
+        # x = self.norm_denorm.denormalize(x, mean, std)
 
         return x
     
+
+# Train communication forward 
+def train_forward_communication_pipeline(cfg): 
+
+
+    print("\n\nTRAINING FORWARD AUTOENCODER\n\n")
+
+    # Get split index 
+    split_index = cfg.hyperparameters.split_index
+
+    # Set device  
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Get hyperparameters 
+    batch_size = cfg.schema.batch_size
+    epochs = cfg.comm.channel_training_epochs
+
+    # Get datasets 
+    train_dataset = hydra.utils.instantiate(cfg.dataset.train)
+    test_dataset = hydra.utils.instantiate(cfg.dataset.test)
+
+    # Get dataloaders
+    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)
+    test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
+
+    # Load pre-trained model 
+    pretrained_model = load_pretrained_model(cfg)
+
+    # Freeze pre-trained model parameters 
+    for param in pretrained_model.parameters():
+        param.requires_grad = False
+    
+    # Get communication pipeline 
+    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
+
+    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+
+    channel = hydra.utils.instantiate(cfg.comm.channel)
+    
+    communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder).to(device)  
+
+    # Train  communication_pipeline parameters 
+    for param in communication_pipeline.parameters():
+        param.requires_grad = True
+
+    # Create the comm_model 
+    blocks_before = pretrained_model.blocks[:split_index]
+    blocks_after = pretrained_model.blocks[split_index:]
+
+    pretrained_model.blocks = nn.Sequential(*blocks_before, communication_pipeline, *blocks_after)
+
+    # Get optimizer 
+    optimizer = hydra.utils.instantiate(cfg.optimizer, params=pretrained_model.parameters())
+
+    # Train the network 
+    _ = training_schedule(pretrained_model, train_dataloader, test_dataloader, optimizer, epochs, device, plot = True)
+
+    # Get the trained communication pipeline 
+    trained_communication_pipeline = pretrained_model.blocks[split_index]
+
+    return trained_communication_pipeline
+
+
+# Train communication backward 
+def train_backward_communication_pipeline(cfg): 
+
+    # Get split index 
+    split_index = cfg.hyperparameters.split_index
+
+    loss = torch.nn.CrossEntropyLoss()
+
+    # Set device  
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Get hyperparameters 
+    batch_size = cfg.schema.batch_size
+    epochs = cfg.comm.channel_training_epochs
+
+    # Get datasets 
+    train_dataset = hydra.utils.instantiate(cfg.dataset.train)
+    test_dataset = hydra.utils.instantiate(cfg.dataset.test)
+
+    # Get dataloaders
+    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)
+    test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
+
+    # Load pre-trained model 
+    pretrained_model = load_pretrained_model(cfg)
+
+    # Get communication pipeline 
+    encoder = hydra.utils.instantiate(cfg.comm.encoder, input_size=pretrained_model.num_features)
+
+    decoder = hydra.utils.instantiate(cfg.comm.decoder, input_size=encoder.output_size, output_size=pretrained_model.num_features)
+
+    channel = hydra.utils.instantiate(cfg.comm.channel)
+    
+    communication_pipeline = CommunicationPipeline(channel=channel, encoder=encoder, decoder=decoder)   
+
+    # Get optimizers
+    comm_optimizer = hydra.utils.instantiate(cfg.optimizer, params=communication_pipeline.parameters())
+    pretrained_optimizer = hydra.utils.instantiate(cfg.optimizer, params=pretrained_model.parameters())
+
+    # Hook to store gradients 
+    def hook_fn(module, grad_input, grad_output):
+        gradients.append(grad_output[0].detach())
+
+    # Register hook 
+    pretrained_model.blocks[split_index - 1].register_backward_hook(hook_fn)
+
+    # For each epoch
+    for epoch in range(1, epochs + 1, 1):
+        
+        # Training  phase 
+        communication_pipeline.train()
+
+        # Forward the train set
+        for batch in train_dataloader:
+
+            # List to store gradient
+            gradients = []
+
+            # Get input and labels from batch
+            batch_input = batch[0].to(device)
+            batch_labels = batch[1].to(device)
+
+            # Compute last layers, get batch predictions
+            batch_predictions = pretrained_model(batch_input)
+
+            # Get batch loss and accuracy
+            batch_loss = loss(batch_predictions, batch_labels)
+            
+            # Backpropagation
+            batch_loss.backward()
+            
+            # Zero out the gradients 
+            pretrained_optimizer.zero_grad()
+            
+            # Get gradient
+            grad_features = gradients[0]
+            
+            # Forward through communication pipeline
+            reconstructed_grads = communication_pipeline(grad_features)
+            
+            # Compute loss
+            comm_loss = nn.MSELoss(reconstructed_grads, grad_features)
+            comm_loss.backward()
+            comm_optimizer.step()
+            
+            total_train_loss += comm_loss.item()
+        
+        # Validation phase 
+        communication_pipeline.eval()
+
+        # Forward the train set
+        for batch in test_dataloader:
+
+            # List to store gradient
+            gradients = []
+
+            # Get input and labels from batch
+            batch_input = batch[0].to(device)
+            batch_labels = batch[1].to(device)
+
+            # Compute last layers, get batch predictions
+            batch_predictions = pretrained_model(batch_input)
+
+            # Get batch loss and accuracy
+            batch_loss = loss(batch_predictions, batch_labels)
+            
+            # Backpropagation
+            batch_loss.backward()
+            
+            # Zero out the gradients 
+            pretrained_optimizer.zero_grad()
+            
+            # Get gradient
+            grad_features = gradients[0]
+            
+            # Forward through communication pipeline
+            reconstructed_grads = communication_pipeline(grad_features)
+            
+            # Compute loss
+            comm_loss = nn.MSELoss(reconstructed_grads, grad_features)
+            
+            total_val_loss += comm_loss.item()
+        
+        print(f"Train Loss: {total_train_loss / len(train_dataloader)}, Val Loss: {total_val_loss / len(test_dataloader)}, ")
+    
+    
+    return communication_pipeline
+
