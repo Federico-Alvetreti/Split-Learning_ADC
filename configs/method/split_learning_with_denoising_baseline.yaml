@@ -1,2 +1,4 @@
-_target_: methods.split_learning_with_denoising_baseline
-_recursive_: false
+function:
+  _target_: methods.split_learning_with_denoising_baseline
+  _recursive_: false
+name : split_learning_with_denoising_baseline

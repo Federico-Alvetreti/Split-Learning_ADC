@@ -5,23 +5,23 @@ defaults:
   - model: deit_tiny_patch16_224
   - optimizer: adam
   - schema : default
-  - method : split_learning_with_denoising_baseline
+  - method : only_forward_split_learning_baseline
   - _self_
 
+# IDk if this needs to be fixed 
 hyperparameters:
   snr:   10       # Sound to noise ratio 
   split_index : 3  # Where to split the network 
-  experiment_name : ${method._target_}
 
-# Set roots for results and dataset 
+# Set roots for results, datasets and plots 
 core:
   dataset_root: ./data
   results_path: ./results
-  plots_path : ./plots/${hyperparameters.experiment_name}
+  plots_path : ./plots
 
 hydra:
   run:
-    dir: ${core.results_path}/${hyperparameters.experiment_name}/${hyperparameters.snr}
+    dir: ${core.results_path}/${dataset.name}/${model.model_name}/${method.name}/${hyperparameters.snr}
 
   job:
     chdir: No

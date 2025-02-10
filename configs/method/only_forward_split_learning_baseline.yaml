@@ -1,2 +1,4 @@
-_target_: methods.only_forward_split_learning_baseline
-_recursive_: false
+function:
+  _target_: methods.only_forward_split_learning_baseline
+  _recursive_: false
+name: only_forward_split_learning_baseline

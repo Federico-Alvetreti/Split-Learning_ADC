@@ -11,7 +11,6 @@ import hydra
             config_name="default")
 
 
-
 def plot_metrics_vs_epochs(cfg): 
 
     results_path = cfg.core.results_path #fix this 
@@ -58,7 +57,8 @@ def plot_metrics_vs_epochs(cfg):
     print("Epoch-based plots saved in the 'plots' folder.")
 
 
-def plot_metrics_vs_snr(results_path="results", plots_path="plots/baselines"):  
+def plot_metrics_vs_snr(results_path="results", plots_path="plots/baselines"): 
+    
     os.makedirs(plots_path, exist_ok=True)
     
     experiments = [d for d in os.listdir(results_path) if os.path.isdir(os.path.join(results_path, d))]

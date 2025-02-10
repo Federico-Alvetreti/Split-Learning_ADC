@@ -1,11 +1,12 @@
 import torch 
 import hydra
-import copy 
 from comm_functions import train_backward_communication_pipeline, train_forward_communication_pipeline
-from utils import load_pretrained_model
 
 # This baseline consists in sending trough the channel the raw data (images) adding noise 
-def send_raw_data_baseline(model, cfg):
+def send_raw_data_baseline(cfg):
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
 
     # Get channel 
     channel =  hydra.utils.instantiate(cfg.comm.channel)
@@ -18,9 +19,12 @@ def send_raw_data_baseline(model, cfg):
 
     return model 
 
-
 # This baseline consists in splitting the network in a certain split_index and just add noise to gradients and activations 
-def simple_split_learning_baseline(model, cfg):
+def simple_split_learning_baseline(cfg):
+
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
      
      # Get channel 
     channel =  hydra.utils.instantiate(cfg.comm.channel)
@@ -56,9 +60,11 @@ def simple_split_learning_baseline(model, cfg):
 
     return model 
 
-
 # This baseline consists in splitting the network in a certain split_index and just add noise to  activations (not training the edge device) 
-def only_forward_split_learning_baseline(model, cfg):
+def only_forward_split_learning_baseline(cfg):
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
      
      # Get channel 
     channel =  hydra.utils.instantiate(cfg.comm.channel)
@@ -97,7 +103,7 @@ def only_forward_split_learning_baseline(model, cfg):
     return model 
 
 
-def split_learning_with_denoising_baseline(model, cfg):
+def split_learning_with_denoising_baseline(cfg):
 
     # Train forward communication pipeline  + denoiser
     forward_communication_pipeline = train_forward_communication_pipeline(cfg)
@@ -125,6 +131,8 @@ def split_learning_with_denoising_baseline(model, cfg):
 
         return new_output
     
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
 
     # Register the hooks (we are assuning we have a ViT with blocks modules )
     model.blocks[split_index - 1].register_forward_hook(apply_forward_pipeline)

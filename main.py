@@ -13,7 +13,7 @@ from utils import training_schedule
             config_name="default")
 
 def main(cfg):
-
+    
     # Set seed for reproducibility 
     torch.manual_seed(42) 
 
@@ -32,12 +32,9 @@ def main(cfg):
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)
     test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
 
-    # Initialize  model  
-    comm_model = hydra.utils.instantiate(cfg.model)
-
-    # Apply method 
-    comm_model = hydra.utils.call(cfg.method, model=comm_model, cfg = cfg ).to(device)
- 
+    # Get model 
+    comm_model = hydra.utils.call(cfg.method.function, cfg = cfg).to(device)
+    
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
 
