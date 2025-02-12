@@ -28,3 +28,6 @@ test:
   
 name : flowers-102
 num_classes : 102 
+epochs : 20 
+batch_size : 128
+pre_training_epochs : 30

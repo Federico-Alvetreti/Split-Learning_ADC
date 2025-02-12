@@ -4,7 +4,6 @@ defaults:
   - dataset: flowers_102
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - schema : default
   - method : only_forward_split_learning_baseline
   - _self_
 
@@ -21,7 +20,7 @@ core:
 
 hydra:
   run:
-    dir: ${core.results_path}/${dataset.name}/${model.model_name}/${method.name}/${hyperparameters.snr}
+    dir: ${core.results_path}/${dataset.name}/${model.model_name}/${method.name}/snr=${hyperparameters.snr}
 
   job:
     chdir: No
@@ -30,5 +29,9 @@ hydra:
         exclude_keys: ['comm', 'dataset', 'model', 'optimizer', 'schema','split_index', 'hyperparameters']
         kv_sep: '='
         item_sep: '__'
+
+  job_logging:
+    root:
+      level: WARNING  # Change to ERROR if you want to suppress more
 
 

@@ -1,0 +1,71 @@
+comm:
+  channel:
+    _target_: comm_functions.Gaussian_Noise_Analogic_Channel
+    snr: ${hyperparameters.snr}
+  encoder:
+    _target_: comm_functions.BaseRealToComplexNN
+    output_size: 0.5
+    n_layers: 3
+    normalize: true
+    drop_last_activation: true
+  decoder:
+    _target_: comm_functions.ConcatComplexToRealNN
+    n_layers: 3
+  channel_training_epochs: 100
+dataset:
+  train:
+    _target_: torchvision.datasets.Food101
+    split: train
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.RandomResizedCrop
+        size: 224
+      - _target_: torchvision.transforms.RandomHorizontalFlip
+      - _target_: torchvision.transforms.ToTensor
+    root: ${core.dataset_root}
+    download: true
+  test:
+    _target_: torchvision.datasets.Food101
+    split: test
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.Resize
+        size:
+        - 256
+        - 256
+      - _target_: torchvision.transforms.CenterCrop
+        size: 224
+      - _target_: torchvision.transforms.ToTensor
+    root: ${core.dataset_root}
+    download: true
+  name: food-101
+  num_classes: 101
+  epochs: 5
+  batch_size: 128
+  pre_training_epochs: 10
+model:
+  _target_: timm.create_model
+  model_name: deit_tiny_patch16_224.fb_in1k
+  pretrained: true
+  num_classes: ${dataset.num_classes}
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0001
+  eps: 1.0e-08
+  weight_decay: 0
+method:
+  function:
+    _target_: methods.simple_split_learning_baseline
+    _recursive_: false
+  name: simple_split_learning_baseline
+hyperparameters:
+  snr: -6
+  split_index: 3
+core:
+  dataset_root: ./data
+  results_path: ./results
+  plots_path: ./plots

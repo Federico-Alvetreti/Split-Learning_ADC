@@ -1,0 +1,4 @@
+- hyperparameters.snr=0
+- method=only_forward_split_learning_baseline
+- model=deit_small_patch16_224
+- dataset=food_101

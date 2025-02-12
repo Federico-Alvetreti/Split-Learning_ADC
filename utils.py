@@ -93,6 +93,11 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
   # Initialize val losses and accuracies
   val_losses = []
   val_accuracies = []
+  
+  # Inizialize communication cost 
+  if hasattr(model, "channel"):
+    communication_costs = []
+  
 
   # For each epoch
   for epoch in range(1, n_epochs + 1, 1):
@@ -113,6 +118,10 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
     val_losses.append(avg_val_loss)
     val_accuracies.append(avg_val_accuracy)
 
+    # Store epoch communication cost 
+    if hasattr(model, "channel"):
+      communication_costs.append(model.channel.total_communication)
+
     if plot:
       # Print losses
       print("\nTrain loss: " + str(avg_train_loss) + "; Val loss: " + str(avg_val_loss))
@@ -120,9 +129,9 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
       # Print accuracies
       print("Train accuracy: " + str(avg_train_accuracy) + "; Val accuracy: " + str(avg_val_accuracy))
 
+    
 
-
-
+  # Store results in a dictionary 
   results = {
     "Train losses": train_losses,
     "Train accuracies": train_accuracies,
@@ -131,7 +140,7 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
 }
 
   if hasattr(model, "channel"):
-      results["Communication cost"] = model.channel.total_communication
+      results["Communication cost"] = communication_costs
 
   return results
 

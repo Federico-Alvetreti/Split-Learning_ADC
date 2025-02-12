@@ -5,9 +5,8 @@ train:
     _target_: torchvision.transforms.Compose
     _recursive_: true
     transforms:
-      - _target_: torchvision.transforms.RandomCrop
+      - _target_: torchvision.transforms.RandomResizedCrop
         size: 224
-        padding: 24
       - _target_: torchvision.transforms.RandomHorizontalFlip
       - _target_: torchvision.transforms.ToTensor
   root: ${core.dataset_root}
@@ -21,10 +20,15 @@ test:
     _recursive_: true
     transforms:
       - _target_: torchvision.transforms.Resize
-        size: [224, 224]
+        size: [256, 256]  # Resize to make sure the shortest side is 256
+      - _target_: torchvision.transforms.CenterCrop
+        size: 224  # Consistent cropping from center
       - _target_: torchvision.transforms.ToTensor
   root: ${core.dataset_root}
   download: Yes
 
 name : food-101
 num_classes : 101 
+epochs : 5 
+batch_size : 128
+pre_training_epochs : 10

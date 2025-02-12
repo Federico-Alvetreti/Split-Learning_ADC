@@ -21,8 +21,8 @@ def main(cfg):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Get hyperparameters 
-    batch_size = cfg.schema.batch_size
-    epochs = cfg.schema.epochs 
+    batch_size = cfg.dataset.batch_size
+    epochs = cfg.dataset.epochs 
 
     # Get datasets 
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
@@ -37,6 +37,9 @@ def main(cfg):
     
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
+
+    # Print model, dataset and method
+    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} using {cfg.method.name} \n")
 
     # Train 
     results = training_schedule(comm_model, train_dataloader, test_dataloader, optimizer, epochs, device)
