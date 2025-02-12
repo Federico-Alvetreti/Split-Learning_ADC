@@ -3,64 +3,74 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
-import hydra 
 
 
-@hydra.main(config_path="configs",
-            version_base='1.2',
-            config_name="default")
-
-
-def plot_metrics_vs_epochs(cfg): 
-
-    results_path = cfg.core.results_path #fix this 
-    plots_path = cfg.core.plots_path
-     
-    os.makedirs(plots_path, exist_ok=True)
-    snr_folders = [str(i) for i in range(-10, 11)]  
-    train_losses, train_accuracies, val_losses, val_accuracies = [], [], [], []
+def plot_metrics_vs_epochs(results_root = "results", plots_root = "plots/baselines/metrics_vs_epochs",
+                            datasets = ["food-101", "flowers-102"],
+                              models = ["deit_tiny_patch16_224.fb_in1k","deit_small_patch16_224.fb_in1k"],
+                                methods = ["only_forward_split_learning_baseline", "simple_split_learning_baseline", "send_raw_data_baseline"]): 
     
-    for snr in snr_folders:
-        result_file = os.path.join(results_path, snr, "training_results.json")
-        if os.path.exists(result_file):
-            with open(result_file, "r") as f:
-                data = json.load(f)
-            train_losses.append(data["Train losses"])
-            train_accuracies.append(data["Train accuracies"])
-            val_losses.append(data["Val losses"])
-            val_accuracies.append(data["Val accuracies"])
-    
-    snr_values = [float(snr) for snr in snr_folders]
-    norm = mcolors.Normalize(vmin=min(snr_values), vmax=max(snr_values))
-    cmap = plt.cm.viridis  
-    
-    def plot_metric(metric_data, ylabel, title, filename):
-        plt.figure(figsize=(10, 6))
-        for i, metric in enumerate(metric_data):
-            plt.plot(range(1, 21), metric, marker='o', color=cmap(norm(snr_values[i])))
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
-        plt.colorbar(sm, ax=plt.gca(), label="SNR Value")
-        plt.xlabel("Epoch")
-        plt.ylabel(ylabel)
-        plt.title(title)
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(os.path.join(plots_path, filename))
-        plt.close()
-    
-    plot_metric(train_accuracies, "Training Accuracy", "Training Accuracy vs Epochs for Different SNRs", "train_accuracy_vs_epochs.png")
-    plot_metric(train_losses, "Training Loss", "Training Loss vs Epochs for Different SNRs", "train_loss_vs_epochs.png")
-    plot_metric(val_accuracies, "Validation Accuracy", "Validation Accuracy vs Epochs for Different SNRs", "val_accuracy_vs_epochs.png")
-    plot_metric(val_losses, "Validation Loss", "Validation Loss vs Epochs for Different SNRs", "val_loss_vs_epochs.png")
+    for model in models:
+        for dataset in datasets:
+            for method in methods:
+
+                # Make results and plots paths 
+                results_path = results_root + "/" + dataset + "/" + model + "/" + method
+                plots_path = plots_root + "/" + dataset + "/" + model + "/" + method
+                
+                os.makedirs(plots_path, exist_ok=True)
+                snr_folders = [str(i) for i in range(-10, 11)]  
+                train_losses, train_accuracies, val_losses, val_accuracies = [], [], [], []
+                
+                for snr in snr_folders:
+                    result_file = os.path.join(results_path, "snr=" + snr, "training_results.json")
+                    if os.path.exists(result_file):
+                        with open(result_file, "r") as f:
+                            data = json.load(f)
+                        train_losses.append(data["Train losses"])
+                        train_accuracies.append(data["Train accuracies"])
+                        val_losses.append(data["Val losses"])
+                        val_accuracies.append(data["Val accuracies"])
+                
+                snr_values = [float(snr) for snr in snr_folders]
+                norm = mcolors.Normalize(vmin=min(snr_values), vmax=max(snr_values))
+                cmap = plt.cm.viridis  
+                
+                def plot_metric(metric_data, ylabel, title, filename):
+                    plt.figure(figsize=(10, 6))
+                    for i, metric in enumerate(metric_data):
+                        plt.plot(range(1, len(metric) + 1), metric, marker='o', color=cmap(norm(snr_values[i])))
+                    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+                    sm.set_array([])
+                    plt.colorbar(sm, ax=plt.gca(), label="SNR Value")
+                    plt.xlabel("Epoch")
+                    plt.ylabel(ylabel)
+                    plt.title(title)
+                    plt.grid(True)
+                    plt.tight_layout()
+
+                    if "Loss" in ylabel:
+                        plt.ylim(0,5)
+                    elif "Accuracy" in ylabel:
+                        plt.ylim(0,1)
+                    plt.savefig(os.path.join(plots_path, filename))
+                    plt.close()
+                
+                plot_metric(train_accuracies, "Training Accuracy", "Training Accuracy vs Epochs for Different SNRs", "train_accuracy_vs_epochs.png")
+                plot_metric(train_losses, "Training Loss", "Training Loss vs Epochs for Different SNRs", "train_loss_vs_epochs.png")
+                plot_metric(val_accuracies, "Validation Accuracy", "Validation Accuracy vs Epochs for Different SNRs", "val_accuracy_vs_epochs.png")
+                plot_metric(val_losses, "Validation Loss", "Validation Loss vs Epochs for Different SNRs", "val_loss_vs_epochs.png")
     
     print("Epoch-based plots saved in the 'plots' folder.")
 
 
-def plot_metrics_vs_snr(results_path="results/flowers-102/deit_small_patch16_224.fb_in1k", plots_path="plots/flowers-102/deit_small_patch16_224.fb_in1k"): 
+def plot_metrics_vs_snr(results_path = "results", plots_path = "plots/baselines", dataset = "food-101", model = "deit_small_patch16_224.fb_in1k"):
     
+    # Make results and plots paths 
+    results_path += "/" + dataset + "/" + model
+    plots_path += "/" + dataset + "/" + model
+
     os.makedirs(plots_path, exist_ok=True)
-    
     experiments = [d for d in os.listdir(results_path) if os.path.isdir(os.path.join(results_path, d))]
 
     metrics = {}
@@ -96,7 +106,7 @@ def plot_metrics_vs_snr(results_path="results/flowers-102/deit_small_patch16_224
     def plot_cost(y_key, ylabel, title, filename, colors):
         plt.figure(figsize=(10, 6))
         for i, (exp, data) in enumerate(metrics.items()):
-            plt.plot(range(20), data[y_key], marker='o', label=exp, color=colors[i % len(colors)])
+            plt.plot(range(5), data[y_key], marker='o', label=exp, color=colors[i % len(colors)])
         plt.xlabel("Epoch")
         plt.ylabel(ylabel)
         plt.title(title)
@@ -116,10 +126,8 @@ def plot_metrics_vs_snr(results_path="results/flowers-102/deit_small_patch16_224
     print("SNR-based comparison plots saved in the 'plots/last_epoch' folder.")
 
 
-
-
-
-def comparison_plot(results_root="results", plots_root="plots/comparisons"):
+# Create comparison plots between experiments 
+def comparison_between_experiments_plot(results_root="results", plots_root="plots/baselines_comparison"):
     datasets = [d for d in os.listdir(results_root) if os.path.isdir(os.path.join(results_root, d))]
     colors = ['b', 'r', 'g', 'm', 'c', 'y', 'k', 'orange', 'purple', 'brown']
 
@@ -180,8 +188,3 @@ def comparison_plot(results_root="results", plots_root="plots/comparisons"):
 
     print(f"SNR-based comparison plots saved in the '{plots_root}' folder.")
 
-# Example usage:
-# comparison_plot()
-
-# Example usage:
-# plot_metrics_vs_snr()
