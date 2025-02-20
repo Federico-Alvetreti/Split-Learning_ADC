@@ -4,13 +4,15 @@ defaults:
   - dataset: flowers_102
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : only_forward_split_learning_baseline
+  - method : delta
   - _self_
 
 # IDk if this needs to be fixed 
 hyperparameters:
-  snr:   10       # Sound to noise ratio 
-  split_index : 3  # Where to split the network 
+  snr:   -10       # Sound to noise ratio 
+  split_index : 3  # Where to split the network
+  experiment_name : prova 
+  
 
 # Set roots for results, datasets and plots 
 core:
@@ -20,7 +22,7 @@ core:
 
 hydra:
   run:
-    dir: ${core.results_path}/${dataset.name}/${model.model_name}/${method.name}/snr=${hyperparameters.snr}
+    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/snr=${hyperparameters.snr}
 
   job:
     chdir: No
@@ -32,6 +34,5 @@ hydra:
 
   job_logging:
     root:
-      level: WARNING  # Change to ERROR if you want to suppress more
-
+      level: WARNING  
 
