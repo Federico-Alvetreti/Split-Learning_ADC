@@ -63,10 +63,10 @@ method:
   name: delta
   parameters:
     alfa: 0.1
-    percentage: 0.9
+    percentage: 0.8
 hyperparameters:
-  snr: -10
-  split_index: 3
+  snr: 0
+  split_index: 4
   experiment_name: prova
 core:
   dataset_root: ./data

@@ -34,12 +34,6 @@ def main(cfg):
 
     # Get model 
     comm_model = hydra.utils.call(cfg.method.function, cfg = cfg).to(device)
-
-    def hook_fn(module, input, output):
-        print("ciao")
-
-    comm_model.blocks[1].attn.attn_drop.register_forward_hook(hook_fn)
-
     
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())

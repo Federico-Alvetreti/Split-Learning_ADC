@@ -9,7 +9,7 @@ defaults:
 
 # IDk if this needs to be fixed 
 hyperparameters:
-  snr:   -10       # Sound to noise ratio 
+  snr:   10       # Sound to noise ratio 
   split_index : 3  # Where to split the network
   experiment_name : prova 
   

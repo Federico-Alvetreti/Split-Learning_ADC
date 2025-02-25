@@ -65,7 +65,7 @@ method:
     alfa: 0.1
     percentage: 0.9
 hyperparameters:
-  snr: -10
+  snr: 10
   split_index: 3
   experiment_name: prova
 core:

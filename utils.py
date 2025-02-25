@@ -27,6 +27,13 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot):
 
     # Get batch loss and accuracy
     batch_loss = loss(batch_predictions, batch_labels)
+
+    # This line of code is kind of bad... 
+    if hasattr(model, "last_losses"):
+        model.last_losses.append(batch_loss.item())
+        model.last_losses = model.last_losses[-2:]
+
+
     batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
 
     # Store them
