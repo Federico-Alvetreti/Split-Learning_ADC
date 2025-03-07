@@ -22,19 +22,25 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot):
     batch_input = batch[0].to(device)
     batch_labels = batch[1].to(device)
 
-    # Compute last layers, get batch predictions
+    # Handle batch_compression method 
+    if hasattr(model, "labels"):
+      model.labels = batch_labels 
+
+    # Get batch predictions
     batch_predictions = model(batch_input)
+
+    # Handle batch_compression method 
+    if hasattr(model, "labels"):
+      batch_labels = model.labels
 
     # Get batch loss and accuracy
     batch_loss = loss(batch_predictions, batch_labels)
-
-    # This line of code is kind of bad... 
-    if hasattr(model, "last_losses"):
-        model.last_losses.append(batch_loss.item())
-        model.last_losses = model.last_losses[-2:]
-
-
     batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
+
+    # Store the losses in the model if required  
+    if hasattr(model, "last_losses"):
+       model.last_losses.append(batch_loss)
+       model.last_losses = model.last_losses[-2:]
 
     # Store them
     train_loss += batch_loss.item()
@@ -46,6 +52,27 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot):
     # Update and zero out previous gradients
     optimizer.step()
     optimizer.zero_grad()
+
+    # Freeze edge state "C"
+    if model.method == "freeze":
+      while model.state == 2:
+
+        # Forward last activations 
+        batch_predictions = model.stored_activations_forward()
+        
+        # Batch loss 
+        batch_loss = loss(batch_predictions, batch_labels)
+        model.last_losses.append(batch_loss)
+        model.last_losses = model.last_losses[-2:]
+
+        # Backpropagation
+        batch_loss.backward()
+
+        # Update and zero out previous gradients
+        optimizer.step()
+        optimizer.zero_grad()
+
+
 
   # Compute average loss and accuracy
   average_train_loss = train_loss / len(train_data_loader)
@@ -204,4 +231,19 @@ def load_pretrained_model(cfg):
     
     return model
 
+# Function used to freeze edge layers 
+def freeze_edge(model,split_index):
+    # Freeze initial encoding layers 
+    for name, param in model.named_parameters():
+        if name in ["cls_token", "pos_embed", "patch_embed.proj.weight", "patch_embed.proj.bias"]:
+            param.requires_grad = False
 
+    # Freeze every block  before the split_index 
+    for block in model.blocks[:split_index]:
+        for param in block.parameters():
+            param.requires_grad = False
+
+# Function to train all parameters 
+def train_all(model):
+    for name, param in model.named_parameters():
+        param.requires_grad = True

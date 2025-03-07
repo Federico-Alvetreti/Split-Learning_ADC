@@ -1,7 +1,6 @@
 function:
   _target_: methods.delta
   _recursive_: false
-name: delta
+name: DELTA
 parameters:
-  alfa : 0.1
-  percentage: 0.9
+  K : 9

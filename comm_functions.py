@@ -36,8 +36,8 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         return x + noise
 
     def forward(self, x: torch.Tensor, snr=None):
-        """Adds Gaussian noise to the input tensor based on the given SNR."""
         
+        """Adds Gaussian noise to the input tensor based on the given SNR."""
         # Add the total communication cost 
         self.total_communication += torch.prod(torch.tensor(x.size())).item()
 
