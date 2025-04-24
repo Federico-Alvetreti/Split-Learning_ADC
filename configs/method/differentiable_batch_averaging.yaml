@@ -1,0 +1,6 @@
+function:
+  _target_: scripts.methods.differentiable_batch_averaging
+  _recursive_: false
+name: differentiable_batch_averaging
+parameters:
+  compression_rate: 0.8

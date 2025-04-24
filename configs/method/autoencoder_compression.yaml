@@ -1,0 +1,20 @@
+function:
+  _target_: scripts.methods.autoencoder_compression 
+  _recursive_: false
+name: autoencoder_compression
+
+parameters:
+  autoencoder_compression: 0.5
+  num_layers: 2
+
+encoder:
+  _target_: scripts.comm_functions.BaseRealToComplexNN
+  output_size: ${..parameters.autoencoder_compression}
+  n_layers: ${..parameters.num_layers}
+  normalize: True  
+  drop_last_activation: True  
+
+decoder:
+  _target_: scripts.comm_functions.ConcatComplexToRealNN
+  n_layers: ${..parameters.num_layers}
+ 

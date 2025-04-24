@@ -1,0 +1,5 @@
+function:
+  _target_: scripts.methods.JPEG
+  _recursive_: false
+name : JPEG
+parameters: null

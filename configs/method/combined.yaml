@@ -1,7 +1,0 @@
-function:
-  _target_: methods.combined
-  _recursive_: false
-name: combined
-parameters:
-  tokens_percentage : 1
-  batch_compression_rate : 1

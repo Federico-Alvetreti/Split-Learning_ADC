@@ -1,0 +1,14 @@
+function:
+  _target_: scripts.methods.ours_static
+  _recursive_: false
+name: ours
+parameters:
+  # Galore parameters
+  update_frequency: 3
+  energy_threshold: 0.9
+
+  # Compression
+  compression: 0.6
+
+  # Random_freeze
+  freeze_probability : 0.2

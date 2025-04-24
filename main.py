@@ -5,7 +5,8 @@ import os
 import json 
 
 # Custom functions 
-from utils import training_schedule
+from scripts.utils import training_schedule, filter_dataset_by_jpeg
+
 
 # Hydra configuration 
 @hydra.main(config_path="configs",
@@ -13,6 +14,9 @@ from utils import training_schedule
             config_name="default")
 
 def main(cfg):
+
+    # Print model, dataset and method
+    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} with an SNR of {cfg.hyperparameters.snr} using {cfg.method.name}. \n")
     
     # Set seed for reproducibility 
     torch.manual_seed(42) 
@@ -26,23 +30,24 @@ def main(cfg):
 
     # Get datasets 
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
-    test_dataset = hydra.utils.instantiate(cfg.dataset.test)
+    val_dataset = hydra.utils.instantiate(cfg.dataset.test)
+
+    # Compress the train dataset when using JPEG method 
+    if cfg.method.name == "JPEG":
+        train_dataset = filter_dataset_by_jpeg(train_dataset, cfg)
 
     # Get dataloaders
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)
-    test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, shuffle=False, batch_size=batch_size)
+    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size)
 
     # Get model 
     comm_model = hydra.utils.call(cfg.method.function, cfg = cfg).to(device)
     
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
-    
-    # Print model, dataset and method
-    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} using {cfg.method.name} \n")
 
     # Train 
-    results = training_schedule(comm_model, train_dataloader, test_dataloader, optimizer, epochs, device)
+    results = training_schedule(comm_model, train_dataloader, val_dataloader, optimizer, epochs, device)
 
     # Get the current Hydra output directory
     hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir

@@ -1,0 +1,3 @@
+- hyperparameters.snr=-5
+- method.parameters.tokens_percentage=0.7
+- method.parameters.batch_selection=1

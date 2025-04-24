@@ -44,7 +44,7 @@ dataset:
   name: flowers-102
   num_classes: 102
   epochs: 20
-  batch_size: 128
+  batch_size: 256
   pre_training_epochs: 30
 model:
   _target_: timm.create_model
@@ -58,7 +58,7 @@ optimizer:
   weight_decay: 0
 method:
   function:
-    _target_: methods.freeze
+    _target_: methods.adaptive_freezing
     _recursive_: false
   name: freeze
   parameters:

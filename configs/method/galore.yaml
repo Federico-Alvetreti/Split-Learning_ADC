@@ -1,0 +1,8 @@
+function:
+  _target_: scripts.methods.galore 
+  _recursive_: false
+name: galore
+
+parameters:
+  energy_threshold: 0.9
+  switching_frequency: 10

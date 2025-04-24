@@ -1,0 +1,67 @@
+comm:
+  channel:
+    _target_: scripts.comm_functions.Gaussian_Noise_Analogic_Channel
+    snr: ${hyperparameters.snr}
+dataset:
+  train:
+    _target_: torchvision.datasets.Flowers102
+    split: train
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.RandomCrop
+        size: 224
+        padding: 24
+      - _target_: torchvision.transforms.RandomHorizontalFlip
+      - _target_: torchvision.transforms.ToTensor
+    root: ${core.dataset_root}
+    download: false
+  test:
+    _target_: torchvision.datasets.Flowers102
+    split: val
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Resize
+        size:
+        - 224
+        - 224
+    root: ${core.dataset_root}
+    download: false
+  name: flowers-102
+  num_classes: 102
+  epochs: 20
+  batch_size: 128
+model:
+  _target_: timm.create_model
+  model_name: deit_tiny_patch16_224.fb_in1k
+  pretrained: true
+  num_classes: ${dataset.num_classes}
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0001
+  eps: 1.0e-08
+  weight_decay: 0
+method:
+  function:
+    _target_: scripts.methods.ours
+    _recursive_: false
+  name: ours
+  parameters:
+    update_frequency: 5
+    energy_threshold: 0.9
+    compression_step: 0.05
+    target_compression: 0.3
+    alpha: 0.2
+    threshold: 0.02
+hyperparameters:
+  snr: 10
+  split_index: 3
+  experiment_name: Prova
+core:
+  dataset_root: ./data
+  results_path: ./results
+  plots_path: ./plots

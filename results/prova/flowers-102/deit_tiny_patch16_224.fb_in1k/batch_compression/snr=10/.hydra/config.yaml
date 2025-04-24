@@ -44,7 +44,7 @@ dataset:
   name: flowers-102
   num_classes: 102
   epochs: 20
-  batch_size: 128
+  batch_size: 256
   pre_training_epochs: 30
 model:
   _target_: timm.create_model
@@ -62,7 +62,7 @@ method:
     _recursive_: false
   name: batch_compression
   parameters:
-    compression_rate: 0
+    compression_rate: 0.2
 hyperparameters:
   snr: 10
   split_index: 3

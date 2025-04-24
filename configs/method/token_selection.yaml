@@ -1,7 +1,7 @@
 function:
-  _target_: methods.token_selection
+  _target_: scripts.methods.token_selection
   _recursive_: false
 name: token_selection
 parameters:
-  percentage : 0.8
-  single_selection : 0
+  tokens_percentage : 0.8
+  batch_selection : 0

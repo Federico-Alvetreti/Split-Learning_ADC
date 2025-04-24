@@ -1,0 +1,3 @@
+- hyperparameters.snr=5
+- method.parameters.tokens_percentage=1
+- method.parameters.batch_compression_rate=0.5
