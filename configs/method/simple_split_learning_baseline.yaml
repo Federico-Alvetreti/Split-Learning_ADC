@@ -1,5 +1,0 @@
-function:
-  _target_: scripts.methods.simple_split_learning_baseline
-  _recursive_: false
-name : simple_split_learning_baseline
-parameters: null

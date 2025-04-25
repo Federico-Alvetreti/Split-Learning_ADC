@@ -1,4 +1,5 @@
-import torch 
+import torch
+import torch.nn as nn
 from tqdm import tqdm
 import hydra 
 from io import BytesIO
@@ -6,6 +7,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 import numpy as np
 import hydra 
+from copy import deepcopy
 
 # Standard training phase 
 def training_phase(model, train_data_loader, loss, optimizer, device, plot):
@@ -128,7 +130,7 @@ def validation_phase(model, val_data_loader, loss, device, plot):
   return average_val_loss, average_val_accuracy
 
 # Standard training / validation cicle
-def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_epochs, device, loss=torch.nn.CrossEntropyLoss(), plot=True, early_stop=True, patience=10, tol=1e-4):
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_epochs, device, loss=torch.nn.CrossEntropyLoss(), min_epochs = 20,  plot=True, early_stop=False, patience=5, tol=1e-2):
     """Train for up to n_epochs, or until convergence if early_stop=True."""
 
     train_losses, train_accuracies = [], []
@@ -172,7 +174,7 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
             else:
                 epochs_no_improve += 1
 
-            if epochs_no_improve >= patience:
+            if epochs_no_improve >= patience and epoch > min_epochs:
                 if plot:
                     print(f"\nStopping early at epoch {epoch} (no validation loss improvement in {patience} epochs).")
                 break
@@ -189,7 +191,7 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
 
     return results
 
-# Filters a dataset object to keep the images that can be compressed using JPEG with the current SNR 
+# Filters a dataset object to keep the images that can be compressed using JPEG with the current SNR and k 
 def filter_dataset_by_jpeg(dataset, cfg):
 
     # Create a "raw" dataset that doesn't apply any transformation to the images 
@@ -197,11 +199,13 @@ def filter_dataset_by_jpeg(dataset, cfg):
         cfg.dataset.train,
         transform=None)
 
-    # Compute the maximum bits per symbol 
+    # Compute the maximum bytes that can pass through the channel 
     snr = cfg.hyperparameters.snr
+    max_symbols = cfg.hyperparameters.max_symbols
     linear_snr =  10**(snr / 10)
     max_bits_per_symbol = np.log2(1 + linear_snr)
-
+    max_bytes = max_symbols * max_bits_per_symbol / 8
+    
     # Set max and min quality of images 
     max_quality, min_quality = 95, 1
     
@@ -209,15 +213,13 @@ def filter_dataset_by_jpeg(dataset, cfg):
     valid_idxs   = []
     quality_map  = {}
     avg_quality = 0
+    communication = 0
     print("Compressing the dataset using JPEG...")
+
     for idx in range(len(raw_dataset)):
         # Get image and its shape 
         sample = raw_dataset[idx]
         img = sample[0] if isinstance(sample, (tuple, list)) else sample
-        w, h = img.size
-
-        # Compute the max bytes the image can weight 
-        max_bytes = (max_bits_per_symbol * w * h * 3) / 8
 
         # Find the highest quality that fits the budget
         for q in range(max_quality, min_quality - 1, -1):
@@ -228,8 +230,9 @@ def filter_dataset_by_jpeg(dataset, cfg):
             compressed_img_bytes = buf.tell()
 
 
-            # If they are lower than max bytes store the index and its quality 
+            # If they are lower than max bytes store the index and its best quality 
             if compressed_img_bytes <= max_bytes:
+                communication += buf.tell()
                 valid_idxs.append(idx)
                 quality_map[idx] = q
                 avg_quality+=q
@@ -237,7 +240,11 @@ def filter_dataset_by_jpeg(dataset, cfg):
     
     # Get percentage of retained images and print it 
     pct = len(valid_idxs) * 100.0 / len(raw_dataset)
-    avg_quality/=len(valid_idxs)
+
+    if len(valid_idxs) == 0:
+        raise ValueError("No valid images were retained. Aborting.")
+
+    avg_quality /= len(valid_idxs)
     print(f"Kept {len(valid_idxs)}/{len(raw_dataset)} images ({pct:.1f}%) with an average quality of {avg_quality}.")
 
     # Build a Dataset wrapper that returns the compressed+transformed images
@@ -247,7 +254,7 @@ def filter_dataset_by_jpeg(dataset, cfg):
             self.full_ds     = full_ds 
             self.indices     = indices
             self.quality_map = quality_map
-            self.total_communication = 0
+            self.total_communication = communication
 
         def __len__(self):
             return len(self.indices)
@@ -266,7 +273,6 @@ def filter_dataset_by_jpeg(dataset, cfg):
             q = self.quality_map[orig_idx]
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=q)
-            self.total_communication += buf.tell()
             buf.seek(0)
             compressed = Image.open(buf).convert(img.mode)
 
@@ -294,7 +300,37 @@ def train_all(model):
     for name, param in model.named_parameters():
         param.requires_grad = True
 
+# Measure the bytes of a tensor 
 def tensor_to_bytes(x: torch.Tensor) -> int:
     buf = BytesIO()
     torch.save(x, buf)
     return buf.tell()
+
+# Creates n_copy of a feed forward network  
+def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
+
+    # Compute the hidden dimensions of the network 
+    shapes = np.linspace(input_size, output_size, num=n_layers + 1, endpoint=True, dtype=int)
+
+    # Create the model as blocks of linear + ReLU 
+    model = []
+    for s in range(len(shapes) - 1):
+        model.append(nn.Linear(shapes[s], shapes[s + 1]))
+        model.append(nn.ReLU())
+    if drop_last_activation:
+        model = model[:-1]
+    model = nn.Sequential(*model)
+
+    # Create the number of copies specifeid in n_copy 
+    if n_copy == 1 :
+       return model
+    else: 
+        models = []
+        for _ in range(n_copy):
+            _model = deepcopy(model)
+            for m in _model.modules():
+                if hasattr(m, 'reset_parameters'):
+                    m.reset_parameters()
+            models.append(_model)
+
+        return models

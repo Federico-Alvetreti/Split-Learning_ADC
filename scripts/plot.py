@@ -1,129 +1,139 @@
 import os
 import json
+import ast
+import argparse
+import numpy as np
 import matplotlib.pyplot as plt
-from collections import defaultdict
 
-def collect_results_grouped_by_method(results_root):
-    methods = defaultdict(lambda: defaultdict(dict))
-    for snr_folder in os.listdir(results_root):
-        if not snr_folder.startswith("snr="):
-            continue
-        snr_value = snr_folder.split("=")[1]
-        snr_path = os.path.join(results_root, snr_folder)
-        for method in os.listdir(snr_path):
-            method_path = os.path.join(snr_path, method)
-            if not os.path.isdir(method_path):
-                continue
-            for param_folder in os.listdir(method_path):
-                if not param_folder.startswith("params="):
-                    continue
-                param_value = param_folder.split("=")[1]
-                result_path = os.path.join(method_path, param_folder, "training_results.json")
-                if os.path.exists(result_path):
-                    with open(result_path, "r") as f:
-                        data = json.load(f)
-                    methods[method][snr_value][param_value] = data
-    return methods
+def plot_experiments(snr, x_metric, y_metric, group_by=None,
+                     base_dir='/home/federico/Desktop/Split_Learning/results/baselines/flowers-102/deit_tiny_patch16_224.fb_in1k/ours'):
+    """
+    Plot (and save) experiments for a given SNR, using interpolation for grouping by communication cost,
+    and place a vertically-stacked legend below the plot.
 
-def plot_metric_evolution(metrics_dict, metric_key, title, ylabel, save_path):
-    plt.figure(figsize=(10, 6))
-    for param, data in metrics_dict.items():
-        if metric_key in data:
-            plt.plot(data[metric_key], label=f"params={param}")
-    plt.title(title)
-    plt.xlabel("Epoch")
-    plt.ylabel(ylabel)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(save_path)
-    print(f"✅ Saved: {save_path}")
-    plt.close()
+    Args:
+        snr (int or str): SNR value, e.g. 0, -10, 10.
+        x_metric (str): 'epoch' or 'communication_cost'
+        y_metric (str): 'train_loss', 'train_accuracy', 'val_loss', 'val_accuracy', 'communication_cost'
+        group_by (str or None): parameter name to group by; if None, plot each experiment separately.
+        base_dir (str): path to the 'ours' directory containing 'snr=...' folders.
+    """
+    # map y_metric → JSON key
+    metric_map = {
+        'train_loss': 'Train losses',
+        'train_accuracy': 'Train accuracies',
+        'val_loss': 'Val losses',
+        'val_accuracy': 'Val accuracies',
+        'communication_cost': 'Communication cost'
+    }
+    y_key = metric_map[y_metric]
 
-def plot_final_comparison(results, metric_key, title, ylabel, save_path):
-    plt.figure(figsize=(10, 6))
-    for param in sorted({p for snr in results for p in results[snr]}):
-        snrs = []
-        values = []
-        for snr in sorted(results.keys(), key=lambda x: float(x)):
-            if param in results[snr] and metric_key in results[snr][param]:
-                snrs.append(snr)
-                values.append(results[snr][param][metric_key][-1])
-        if snrs:
-            plt.plot(snrs, values, marker='o', label=f"params={param}")
-    plt.title(title)
-    plt.xlabel("SNR")
-    plt.ylabel(ylabel)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(save_path)
-    print(f"✅ Saved: {save_path}")
-    plt.close()
+    snr_dir = os.path.join(base_dir, f'snr={snr}')
+    if not os.path.isdir(snr_dir):
+        raise ValueError(f"SNR directory not found: {snr_dir}")
 
-def plot_method(method_name, method_results, output_root):
-    save_base = os.path.join(output_root, method_name)
-    os.makedirs(save_base, exist_ok=True)
+    # Load all experiments
+    experiments = []
+    for entry in os.listdir(snr_dir):
+        if not entry.startswith('params='): continue
+        params = ast.literal_eval(entry[len('params='):])
+        path = os.path.join(snr_dir, entry, 'training_results.json')
+        if not os.path.isfile(path): continue
+        with open(path) as f:
+            data = json.load(f)
+        y_vals = data[y_key]
+        x_vals = (list(range(1, len(y_vals)+1)) if x_metric=='epoch'
+                  else data['Communication cost'])
+        experiments.append({'params': params, 'x': np.array(x_vals), 'y': np.array(y_vals)})
 
-    all_params = {p for snr in method_results for p in method_results[snr]}
+    if not experiments:
+        raise ValueError(f"No experiments for SNR={snr}")
 
-    if len(all_params) > 1:
-        for snr, param_dict in method_results.items():
-            save_dir = os.path.join(save_base, "different_snr", f"snr={snr}")
-            os.makedirs(save_dir, exist_ok=True)
+    # Prepare plotting data
+    plot_data = []
+    if group_by:
+        # Group experiments by parameter
+        groups = {}
+        for e in experiments:
+            key = e['params'].get(group_by)
+            if key is None:
+                raise ValueError(f"Parameter '{group_by}' missing in some runs.")
+            groups.setdefault(key, []).append(e)
 
-            plot_metric_evolution(param_dict, "Train accuracies",
-                                  f"{method_name} - Train Accuracy @ SNR={snr}", "Accuracy",
-                                  os.path.join(save_dir, "train_acc.png"))
+        for key, runs in groups.items():
+            if x_metric == 'communication_cost':
+                # Interpolate onto a common grid
+                all_x = np.concatenate([r['x'] for r in runs])
+                grid_x = np.linspace(all_x.min(), all_x.max(), num=200)
+                interp_ys = [np.interp(grid_x, r['x'], r['y'], left=np.nan, right=np.nan)
+                             for r in runs]
+                y_avg = np.nanmean(np.vstack(interp_ys), axis=0)
+                plot_data.append((f"{group_by}={key}", grid_x, y_avg))
+            else:
+                # Align by shortest epoch length
+                min_len = min(len(r['y']) for r in runs)
+                xs = np.vstack([r['x'][:min_len] for r in runs])
+                ys = np.vstack([r['y'][:min_len] for r in runs])
+                plot_data.append((f"{group_by}={key}", xs.mean(0), ys.mean(0)))
+    else:
+        # No grouping: each experiment is its own line
+        plot_data = [(str(e['params']), e['x'], e['y']) for e in experiments]
 
-            plot_metric_evolution(param_dict, "Val accuracies",
-                                  f"{method_name} - Val Accuracy @ SNR={snr}", "Accuracy",
-                                  os.path.join(save_dir, "val_acc.png"))
+    # Plot
+    plt.figure(figsize=(8,5))
+    for label, xs, ys in plot_data:
+        plt.plot(xs, ys, label=label)
+    plt.xlabel('Epoch' if x_metric=='epoch' else 'Communication Cost')
+    y_labels = {
+        'train_loss': 'Train Loss',
+        'train_accuracy': 'Train Accuracy',
+        'val_loss': 'Validation Loss',
+        'val_accuracy': 'Validation Accuracy',
+        'communication_cost': 'Communication Cost'
+    }
+    plt.ylabel(y_labels[y_metric])
+    plt.title(f"SNR {snr}: {y_labels[y_metric]} vs {'Epochs' if x_metric=='epoch' else 'Comm Cost'}")
 
-            plot_metric_evolution(param_dict, "Train losses",
-                                  f"{method_name} - Train Loss @ SNR={snr}", "Loss",
-                                  os.path.join(save_dir, "train_loss.png"))
+    # Place vertically-stacked legend below the plot
+    plt.legend(loc='upper center',
+               bbox_to_anchor=(0.5, -0.2),
+               ncol=1,
+               fontsize='small')
+    plt.grid(True)
 
-            plot_metric_evolution(param_dict, "Val losses",
-                                  f"{method_name} - Val Loss @ SNR={snr}", "Loss",
-                                  os.path.join(save_dir, "val_loss.png"))
+    # Adjust layout to make room for legend
+    plt.subplots_adjust(bottom=0.30)
 
-            plot_metric_evolution(param_dict, "Communication cost",
-                                  f"{method_name} - Communication Cost @ SNR={snr}", "Cumulative Cost",
-                                  os.path.join(save_dir, "comm_cost.png"))
+    # Save
+    output_dir = "/home/federico/Desktop/Split_Learning/plots/ours"
+    save_folder = os.path.join(output_dir, f"snr_{snr}")
+    os.makedirs(save_folder, exist_ok=True)
+    fname = f"{snr}_{x_metric}_vs_{y_metric}" + (f"_by_{group_by}" if group_by else "") + ".png"
+    save_path = os.path.join(save_folder, fname)
+    plt.savefig(save_path, bbox_inches='tight')
+    print(f"Saved plot as: {save_path}")
 
-    # Always do comparison across SNRs
-    save_cmp = os.path.join(save_base, "comparison")
-    os.makedirs(save_cmp, exist_ok=True)
+    # Show
+    plt.show()
 
-    plot_final_comparison(method_results, "Train accuracies",
-                          f"{method_name} - Final Train Accuracy", "Accuracy",
-                          os.path.join(save_cmp, "train_acc.png"))
 
-    plot_final_comparison(method_results, "Val accuracies",
-                          f"{method_name} - Final Val Accuracy", "Accuracy",
-                          os.path.join(save_cmp, "val_acc.png"))
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Plot training curves with interpolation and vertically-stacked legend")
+    parser.add_argument('--snr',       required=True, help="e.g. 0, -10, 10")
+    parser.add_argument('--x_metric',  required=True,
+                        choices=['epoch','communication_cost'],
+                        help="x-axis metric")
+    parser.add_argument('--y_metric',  required=True,
+                        choices=['train_loss','train_accuracy',
+                                 'val_loss','val_accuracy','communication_cost'],
+                        help="y-axis metric")
+    parser.add_argument('--group_by',  help="parameter name to average over")
+    args = parser.parse_args()
 
-    plot_final_comparison(method_results, "Train losses",
-                          f"{method_name} - Final Train Loss", "Loss",
-                          os.path.join(save_cmp, "train_loss.png"))
-
-    plot_final_comparison(method_results, "Val losses",
-                          f"{method_name} - Final Val Loss", "Loss",
-                          os.path.join(save_cmp, "val_loss.png"))
-
-    plot_final_comparison(method_results, "Communication cost",
-                          f"{method_name} - Final Comm. Cost", "Cumulative Cost",
-                          os.path.join(save_cmp, "comm_cost.png"))
-
-def main():
-    results_root = "/home/federico/Desktop/Split_Learning/results/Static/flowers-102/deit_tiny_patch16_224.fb_in1k"
-    output_root = "plots/Static"
-
-    print("📂 Parsing results...")
-    all_methods = collect_results_grouped_by_method(results_root)
-
-    for method_name, method_results in all_methods.items():
-        print(f"📈 Plotting for method: {method_name}")
-        plot_method(method_name, method_results, output_root)
-
-if __name__ == "__main__":
-    main()
+    plot_experiments(
+        snr=args.snr,
+        x_metric=args.x_metric,
+        y_metric=args.y_metric,
+        group_by=args.group_by
+    )

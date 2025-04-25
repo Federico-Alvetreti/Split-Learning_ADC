@@ -6,11 +6,11 @@ from scripts.utils import freeze_edge, train_all
 import random 
 
 
-#####################
-##### BASELINES #####
-#####################
 
-# Normal learning 
+# ----------- Baselines ----------------------------------------------------
+
+
+# Normal learning without considering the channel, an upper bound to the project 
 def classic_training(cfg):
 
     # Initialize  model  
@@ -21,7 +21,62 @@ def classic_training(cfg):
 
     return model 
 
-# JPEG 
+# Classic split_learning with a channel that splits the network and autoencoder to compress the things 
+def classic_split_learning(cfg):
+
+    # Apply channel to the gradient 
+    def backward_channel(module, grad_output):
+        if model.training:
+            # Apply the channel 
+            grad_output = channel(grad_output[0])
+        
+        # Must return as a Tuple so the ","
+        return (grad_output, )
+    
+    # Apply channel to the activations 
+    def forward_channel(module, args, output):
+        if model.training:
+            # Apply the channel
+            output = channel(output)
+
+        return output
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
+
+    # Get split index 
+    split_index = cfg.hyperparameters.split_index
+
+    # Get max number of symbols 
+    max_symbols = cfg.hyperparameters.max_symbols
+
+    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
+    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
+    
+    # Get Encoder, Decoder and Channel 
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel)
+
+    # Register the hooks on the encoder 
+    encoder.register_full_backward_pre_hook(backward_channel)
+    encoder.register_forward_hook(forward_channel)
+
+    # Add encoder and decoder to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
+
+    # Channel and name  attributes   
+    model.channel = channel
+    model.method = cfg.method.name
+
+    # Set all trainable 
+    train_all(model)
+
+    return model   
+
+# Baseline where the whole dataset is compressed and sent to the server where the training happens 
 def JPEG(cfg):
 
     # Initialize  model  
@@ -31,100 +86,6 @@ def JPEG(cfg):
     model.method = cfg.method.name 
 
     return model 
-
-# Split-learning 
-def simple_split_learning_baseline(cfg):
-
-    # Apply channel to the gradient 
-    def backward_channel(module, grad_output):
-        # We apply our methods only in training 
-        if model.training: 
-            # Apply the channel 
-            grad_output = channel(grad_output[0])
-        
-        # Must return as a Tuple so the ","
-        return (grad_output, )
-    
-    # Apply channel to the activations 
-    def forward_channel(module, args, output):
-        if model.training:
-            # Apply the channel
-            output = channel(output)
-
-        return output
-
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-    
-     # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-     # Get split index 
-    split_index = cfg.hyperparameters.split_index
-
-    # Register the hooks (we are assuning we have a ViT with blocks modules ) 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
-
-    # Add the channel as an attribute
-    model.channel = channel
-
-    model.method = cfg.method.name 
-    return model 
-
-# Compresses before and after the channel using an autoencoder 
-def autoencoder_compression(cfg):
-
-    # Apply channel to the gradient 
-    def backward_channel(module, grad_output):
-        if model.training:
-            # Apply the channel 
-            grad_output = channel(grad_output[0])
-        
-        # Must return as a Tuple so the ","
-        return (grad_output, )
-    
-    # Apply channel to the activations 
-    def forward_channel(module, args, output):
-        if model.training:
-            # Apply the channel
-            output = channel(output)
-
-        return output
-
-    # Get split index 
-    split_index = cfg.hyperparameters.split_index
-
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-
-    # Freeze pre-trained model parameters 
-    for param in model.parameters():
-        param.requires_grad = False
-    
-    # Get Encoder, Decoder and Channel 
-    #encoder, decoder = load_pretrained_encoder_decoder(cfg)
-    encoder = hydra.utils.instantiate(cfg.method.encoder, input_size=model.num_features)
-    decoder = hydra.utils.instantiate(cfg.method.decoder, input_size=encoder.output_size, output_size=model.num_features)
-    channel = hydra.utils.instantiate(cfg.comm.channel)
-
-    # Register the hooks on the encoder 
-    encoder.register_full_backward_pre_hook(backward_channel)
-    encoder.register_forward_hook(forward_channel)
-
-    # Create the autoencoded model  
-    blocks_before = model.blocks[:split_index]
-    blocks_after = model.blocks[split_index:]
-    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
-
-    # Make sure everything is training 
-    train_all(model)
-
-
-    # Store the name of the method in the model
-    model.method = cfg.method.name 
-
-    return model   
 
 # Dynamic Efficient Layer and Tokens Adaptation 
 def delta(cfg):
@@ -146,7 +107,7 @@ def delta(cfg):
 
         return output
 
-    # DELTA forward hook that select tokens 
+    # Token selection mechanism  
     def select_tokens(module, input, output):
 
         if model.training:
@@ -266,14 +227,34 @@ def delta(cfg):
     # Initialize  model  
     model = hydra.utils.instantiate(cfg.model)
 
-    # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-     # Get split index 
+    # Get split index 
     split_index = cfg.hyperparameters.split_index
+
+    # Get max number of symbols 
+    max_symbols = cfg.hyperparameters.max_symbols
+
+    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
+    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
     
-    # For each block
+    # Get Encoder, Decoder and Channel 
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel)
+
+    # Register the hooks on the encoder 
+    encoder.register_full_backward_pre_hook(backward_channel)
+    encoder.register_forward_hook(forward_channel)
+
+    # Channel and name attributes   
+    model.channel = channel
+    model.method = cfg.method.name
+
+    # Set all trainable 
+    train_all(model)
+
+    # For each block register the budget update and token selection mechanism 
     for block in model.blocks:  
+
         # Change the attention in order to store the class_tokens attention scores 
         block.attn = CustomAttention(
         num_heads=block.attn.num_heads,
@@ -290,32 +271,26 @@ def delta(cfg):
         block.budget = 0.9
         block.delta = 0
 
-        # Register the DELTA mechanism
+        # Register the budget update  and token selection mechanism
         block.register_forward_hook(update_budget)
         block.register_forward_hook(select_tokens)
-        
-    
-     # Get channel 
-    
-    # Apply the channel to both forward and backward 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
 
-    # Freeze blocks 
+    # Add encoder and decoder to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
+
+    # Register the mechanism to freeze blocks before the mmodel 
     model.register_forward_pre_hook(freeze_blocks)
 
-    # Add the channel as an attribute of the model 
-    model.channel = channel
-
-    # Store the name of the method in the model
-    model.method = cfg.method.name 
+    # Set the number of training blocks
+    model.K = cfg.method.parameters.K
     
     # Initialize the alfa as the training leerning rate 
     model.alfa = cfg.optimizer.lr
 
-    # Get the number of training blocks
-    model.K = cfg.method.parameters.K
-
+    # Store the name of the method in the model
+    model.method = cfg.method.name
 
     return model
 
@@ -487,16 +462,34 @@ def ours_static(cfg):
             train_all(model)
         return output 
     
+
     # Initialize  model  
     model = hydra.utils.instantiate(cfg.model)
 
-    # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
     # Get split index 
     split_index = cfg.hyperparameters.split_index
-        
 
+    # Get max number of symbols 
+    max_symbols = cfg.hyperparameters.max_symbols
+
+    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
+    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
+    
+    # Get Encoder, Decoder and Channel 
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel)
+
+    # Register the hooks on the encoder 
+    encoder.register_full_backward_pre_hook(backward_channel)
+    encoder.register_forward_hook(forward_channel)
+
+    # Channel and name attributes   
+    model.channel = channel
+    model.method = cfg.method.name
+
+    # Set all trainable 
+    train_all(model)
 
     # Replace the attention layers in the model for blocks before the splitting index 
     for block in model.blocks[:split_index]:
@@ -512,9 +505,18 @@ def ours_static(cfg):
         proj_drop = block.attn.proj_drop)
         block.register_forward_hook(select_tokens)
     
-    # Channel and name  attributes   
-    model.channel = channel
-    model.method = cfg.method.name
+    # Add encoder and decoder to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
+
+    # Initialize methods needed variables 
+    model.t = 0
+    model.server_left_proj_matrix = 0
+    model.server_right_proj_matrix = 0
+    model.device_left_proj_matrix = 0
+    model.device_right_proj_matrix = 0
+    model.labels = 0
 
     # Get compression percentages 
     model.compression = cfg.method.parameters.compression  
@@ -523,355 +525,15 @@ def ours_static(cfg):
     model.update_frequency = cfg.method.parameters.update_frequency
 
     # Freeze percentage
-    model.freeze_probability = cfg.method.parameters.freeze_probability 
-
-    # Initialize methods needed variables 
-    model.t = 0
-    model.server_left_proj_matrix = 0
-    model.server_right_proj_matrix = 0
-    model.device_left_proj_matrix = 0
-    model.device_right_proj_matrix = 0
-    model.labels = 0
-
+    model.freeze_probability = cfg.method.parameters.freeze_probability
 
     # Register the hooks 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
     model.register_forward_pre_hook(random_freeze)
 
     return model
 
 
-#TODO 
-def ours_dynamic(cfg):
-
-    # Galore pipeline 
-    def svd_channel_reconstruct(G, channel):
-
-        # Update projection matrices every T times 
-        if model.update_projections:
-  
-            # Get the average gradient 
-            G_mean = G.mean(dim=0)
-
-            # Wide matrix: use the right singular vectors.
-            U, S, V = torch.linalg.svd(G_mean, full_matrices=False) 
-            # U: [m, min(m,n)], Vh: [min(m,n), n]
-
-            energy = S.pow(2)
-            total_energy = energy.sum()
-            cumulative_energy = torch.cumsum(energy, dim=0)
-            r = (cumulative_energy < (cfg.method.parameters.energy_threshold * total_energy)).sum().item() + 1
-            
-                
-            # Store left projection matrices
-            model.server_left_proj_matrix = U[:, :r]
-            model.device_left_proj_matrix = channel(model.server_left_proj_matrix)
-
-            # Store right projection matrices
-            model.server_right_proj_matrix = V[:r, :]
-            model.device_right_proj_matrix = channel(model.server_right_proj_matrix)
-
-            # Set update_projections flag back to false 
-            model.update_projections = False
-
-        # Compute the projected representation  
-        G =  torch.matmul(torch.matmul(model.server_left_proj_matrix.t().unsqueeze(0), G ), model.server_right_proj_matrix.t().unsqueeze(0))
-
-        # Apply the channel 
-        G= channel(G)
-
-        # Reconstruct the gradient
-        G = torch.matmul(torch.matmul(model.server_left_proj_matrix.unsqueeze(0), G ), model.server_right_proj_matrix.unsqueeze(0))
-
-        return G
-
-    # Function that updates the score of the current state based on the loss 
-    def update_score(module, output):
-        if model.training:
-
-            # Get delta loss 
-            delta_loss = torch.tensor(model.last_losses[0] - model.last_losses[1])
-
-            # Update the score 
-            model.score +=  cfg.method.parameters.alpha * (delta_loss.item() - model.score)
-
-            print("Model Score: ", model.score)
-            if model.t % model.update_frequency == 0: 
-                update_state()
-                print("Model Compression: ",model.compression)
-
-
-            model.t+=1
-
-    # Function that updates the states based on a threshold  
-    def update_state():
-
-        previous_compression = model.compression
-       
-        if model.score > cfg.method.parameters.target_training_step:
-
-            # Double the compression step if the model was alrady training fine 
-            if model.good_training == True:
-                model.compression_step *= 2
-            else:
-                model.compression_step = cfg.method.parameters.compression_step
-            # Update compression percentage 
-            model.compression -= model.compression_step 
-            model.good_training = True
- 
-        else:
-            # Double the compression step if the model was alrady training bad 
-            if model.good_training == False:
-                model.compression_step *= 2
-            else:
-                model.compression_step = cfg.method.parameters.compression_step
-            # Update compression percentage 
-            model.compression += model.compression_step 
-            model.good_training = False
-
-        # If passing through the switch compression point 
-        if previous_compression >= model.switch_compression > model.compression: 
-            freeze_edge(model, split_index) 
-
-        elif previous_compression <= model.switch_compression < model.compression:
-            train_all(model)
-
-            
-
-        # Guarantee model compression always between target and 1 
-        model.compression = max(model.min_compression, min(model.compression, 1))
-        # Update single compression percentages 
-        model.tokens_compression_percentage = model.compression **(1/2)
-        model.batch_compression_rate = model.compression **(1/2)
-        model.update_projections = True
-
-    # Select tokens 
-    def select_tokens(module, input, output):
-
-        if model.training and model.tokens_compression_percentage < 1:
-            B, N, C = output.shape
-            class_tkn_attention = module.attn.class_token_attention
-
-            # Calculate percentage of tokens to keep at each block in order to reach the percentage goal
-            block_percentage = model.tokens_compression_percentage ** (1 / split_index)
-            
-            # Compute the number of tokens to keep (excluding class token)
-            num_tokens_to_keep = int(block_percentage * N)
-            
-            # Compute average attention across the batch (excluding class token)
-            avg_attention = class_tkn_attention[:, 1:].mean(dim=0)  # Shape: (N-1,)
-            sorted_indices = torch.argsort(avg_attention, descending=True)
-            selected_indices = sorted_indices[:num_tokens_to_keep] + 1  # Shift to account for class token
-            selected_indices = selected_indices.unsqueeze(0).expand(B, -1)  # Use same indices for all samples
-        
-            # Concatenate class token with selected tokens
-            batch_indices = torch.arange(B, device=output.device).unsqueeze(1)
-            output = torch.cat([output[:, :1, :], output[batch_indices, selected_indices, :]], dim=1)
-        
-        return output
-    
-    # Function that merges batches with the same labels.
-    def merge_batch(batch, labels, compression_rate):
-
-        # Get the unique labels and the number of unique labels
-        unique_labels = torch.unique(labels)
-
-        # Create variables for the new batch and labels 
-        merged_batches = []
-        merged_labels = []
-
-        # Compress same label inputs 
-        for lab in unique_labels:
-            # Select samples for the current label.
-            group_idx = (labels == lab).nonzero(as_tuple=True)[0]
-            group = batch[group_idx]
-            num_samples = group.shape[0]
-
-            # Determine the target number of samples for this group.
-            target_samples = max(1, round(num_samples * compression_rate))
-
-            # Partition the group into approximately equal chunks.
-            chunks = torch.chunk(group, target_samples, dim=0)
-            avg_chunks = torch.stack([chunk.mean(dim=0) for chunk in chunks])
-            merged_batches.append(avg_chunks)
-            merged_labels.append(torch.full((avg_chunks.shape[0],), lab, dtype=labels.dtype, device=labels.device))
-
-        # Concatenate the merged groups from all labels (so far)
-        merged_batch = torch.cat(merged_batches, dim=0)
-        merged_labels = torch.cat(merged_labels, dim=0)
-
-        return merged_batch, merged_labels
-  
-    # This custom attention functions adds for each module a "class_token_attention" variable, the forward is modified just to store it.
-    class CustomAttention(torch.nn.Module):
-        def __init__(self, num_heads, head_dim, attn_drop, q_norm, k_norm, scale, qkv, proj, proj_drop):
-            super().__init__()
-
-            self.num_heads = num_heads
-            self.head_dim = head_dim
-            self.attn_drop = attn_drop
-            self.q_norm = q_norm
-            self.k_norm = k_norm
-            self.scale = scale
-            self.qkv = qkv
-            self.proj = proj
-            self.proj_drop = proj_drop
-            self.class_token_attention = None 
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            # Same forward of the original class 
-            B, N, C = x.shape
-            qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            q, k, v = qkv.unbind(0)
-            q, k = self.q_norm(q), self.k_norm(k)
-            q = q * self.scale
-            attn = q @ k.transpose(-2, -1)
-            attn = attn.softmax(dim=-1)
-            attn = self.attn_drop(attn) 
-            x = attn @ v
-            x = x.transpose(1, 2).reshape(B, N, C)
-            x = self.proj(x)
-            x = self.proj_drop(x)
-
-            # Get the class token, take the average over the heads and store it 
-            self.class_token_attention = attn[:, :, 0, :].mean(dim=1) 
-
-            return x
-
-    # Apply channel to the gradient 
-    def backward_channel(module, grad_output):
-        if model.training:
-            # Apply the channel 
-            grad_output = svd_channel_reconstruct(grad_output[0], model.channel)
-            
-        # Must return as a Tuple so the ","
-        return (grad_output, )
-    
-    # Apply channel to the activations 
-    def forward_channel(module, args, output):
-
-        if model.training and model.batch_compression_rate  < 1.0:
-            output, model.labels = merge_batch(output, model.labels, model.batch_compression_rate)
-
-            # Apply the channel
-            output = channel(output)
-
-
-        return output
-
-        # Delta forward hook 
-    
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-
-    # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-    # Get split index 
-    split_index = cfg.hyperparameters.split_index
-        
-    # Register the hooks 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
-    model.register_forward_pre_hook(update_score)
-
-    # Replace the attention layers in the model for blocks before the splitting index 
-    for block in model.blocks[:split_index]:
-        block.attn = CustomAttention(
-        num_heads=block.attn.num_heads,
-        head_dim=block.attn.head_dim,
-        attn_drop=block.attn.attn_drop,
-        q_norm=block.attn.q_norm,
-        k_norm=block.attn.k_norm,
-        scale = block.attn.scale,
-        qkv = block.attn.qkv,
-        proj = block.attn.proj,
-        proj_drop = block.attn.proj_drop)
-        block.register_forward_hook(select_tokens)
-    
-    # Channel and name  attributes   
-    model.channel = channel
-    model.method = cfg.method.name
-
-    # Get compression percentages 
-    model.compression = 1 
-    model.tokens_compression_percentage = model.compression **(1/2)
-    model.batch_compression_rate = model.compression **(1/2)
-    model.compression_step = cfg.method.parameters.compression_step
-    model.min_compression = cfg.method.parameters.min_compression
-    model.switch_compression= (model.min_compression + 1) / 2 
-    model.update_frequency = cfg.method.parameters.update_frequency
-    model.update_projections = True
-
-    # Initialize methods needed variables 
-    model.last_losses = [0, 0]
-    model.good_training = False
-    model.score = 0
-    model.t = 0
-    model.server_left_proj_matrix = 0
-    model.server_right_proj_matrix = 0
-    model.device_left_proj_matrix = 0
-    model.device_right_proj_matrix = 0
-    model.labels = 0
-
-    return model
-
-#####################
-#### EXPERIMENTS ####
-#####################
-
-# TODO change all this methods to have a "normal" validation phase for a fair measure
-
-# This baseline consists in sending trough the channel the raw data (images) adding noise 
-def send_raw_data_baseline(cfg):
-
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-
-    # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-    # Add the channel before the model 
-    model = torch.nn.Sequential(channel, model)
-
-    # Add the channel as an attribute
-    model.channel = channel
-
-    model.method = cfg.method.name 
-    return model 
-
-# This baseline consists in splitting the network in a certain split_index and just add noise to  activations (not training the edge device) 
-def only_forward_split_learning_baseline(cfg):
-
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-
-     # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-     # Get split index 
-    split_index = cfg.hyperparameters.split_index
-
-    
-    # Apply channel to the activations 
-    def forward_channel(module, args, output):
-
-        # Apply the channel
-        new_output = channel(output)
-
-        return new_output
-    
-    # Register the hooks (we are assuning we have a ViT with blocks modules )
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
-
-    # Add the channel as an attribute
-    model.channel = channel
-
-    freeze_edge(model, split_index) 
-    
-    model.method = cfg.method.name 
-    return model 
+# ----------- Experiments ----------------------------------------------------
 
 # Static batch merging based on a percentage before the split
 def batch_compression(cfg):
@@ -1110,128 +772,6 @@ def differentiable_batch_averaging(cfg):
 
     return model 
 
-# Static token selection
-def token_selection(cfg):
-
-    # Apply channel to  the gradient 
-    def backward_channel(module, grad_output):
-        # Apply the channel
-        grad_output = channel(grad_output[0])
-
-        return (grad_output, )
-            
-    # Apply channel to the activations 
-    def forward_channel(module, input, output):
-        # Apply the channel
-        output = channel(output)
-
-        return output 
-
-    # Select tokens 
-    def select_tokens(module, input, output):
-        if model.tokens_percentage < 1: 
-            B, N, C = output.shape
-            class_tkn_attention = module.attn.class_token_attention
-
-            # Calculate percentage of tokens to keep at each block in order to reach the percentage goal
-            block_percentage = model.tokens_percentage ** (1 / split_index)
-            
-            # Compute the number of tokens to keep (excluding class token)
-            num_tokens_to_keep = int(block_percentage * N)
-            
-            if model.batch_selection:
-                # Compute average attention across the batch (excluding class token)
-                avg_attention = class_tkn_attention[:, 1:].mean(dim=0)  # Shape: (N-1,)
-                sorted_indices = torch.argsort(avg_attention, descending=True)
-                selected_indices = sorted_indices[:num_tokens_to_keep] + 1  # Shift to account for class token
-                selected_indices = selected_indices.unsqueeze(0).expand(B, -1)  # Use same indices for all samples
-            else:
-                # Sort indices based on entropy per sample (excluding class token)
-                sorted_indices = torch.argsort(class_tkn_attention[:, 1:], dim=1, descending=True)
-                selected_indices = sorted_indices[:, :num_tokens_to_keep] + 1  # Shift to account for class token
-            
-            # Concatenate class token with selected tokens
-            batch_indices = torch.arange(B, device=output.device).unsqueeze(1)
-            output = torch.cat([output[:, :1, :], output[batch_indices, selected_indices, :]], dim=1)
-            
-        return output
-
-    # This custom attention functions adds for each module a "class_token_attention" variable, the forward is modified just to store it.
-    class CustomAttention(torch.nn.Module):
-        def __init__(self, num_heads, head_dim, attn_drop, q_norm, k_norm, scale, qkv, proj, proj_drop):
-            super().__init__()
-
-            self.num_heads = num_heads
-            self.head_dim = head_dim
-            self.attn_drop = attn_drop
-            self.q_norm = q_norm
-            self.k_norm = k_norm
-            self.scale = scale
-            self.qkv = qkv
-            self.proj = proj
-            self.proj_drop = proj_drop
-            self.class_token_attention = None 
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            # Same forward of the original class 
-            B, N, C = x.shape
-            qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            q, k, v = qkv.unbind(0)
-            q, k = self.q_norm(q), self.k_norm(k)
-            q = q * self.scale
-            attn = q @ k.transpose(-2, -1)
-            attn = attn.softmax(dim=-1)
-            attn = self.attn_drop(attn) 
-            x = attn @ v
-            x = x.transpose(1, 2).reshape(B, N, C)
-            x = self.proj(x)
-            x = self.proj_drop(x)
-
-            # Get the class token, take the average over the heads and store it 
-            self.class_token_attention = attn[:, :, 0, :].mean(dim=1) 
-
-            return x
-  
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-    
-     # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-     # Get split index 
-    split_index = cfg.hyperparameters.split_index
-
-    # Register the channel hooks 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
-
-    # Replace the attention layers in the model for blocks before the splitting index 
-    for block in model.blocks[:split_index]:
-        
-        block.attn = CustomAttention(
-        num_heads=block.attn.num_heads,
-        head_dim=block.attn.head_dim,
-        attn_drop=block.attn.attn_drop,
-        q_norm=block.attn.q_norm,
-        k_norm=block.attn.k_norm,
-        scale = block.attn.scale,
-        qkv = block.attn.qkv,
-        proj = block.attn.proj,
-        proj_drop = block.attn.proj_drop)
-        block.register_forward_hook(select_tokens)
-    
-    # Add the channel as an attribute
-    model.channel = channel
-
-    # Store the method name 
-    model.method = cfg.method.name 
-    
-    # Get method parameters 
-    model.batch_selection = cfg.method.parameters.batch_selection
-    model.tokens_percentage = cfg.method.parameters.tokens_percentage
-
-    return model 
-
 # This approach selects one of three states to train dynamically between: train whole network, train just server, train with stored activations 
 def adaptive_freezing(cfg):
 
@@ -1319,194 +859,6 @@ def adaptive_freezing(cfg):
     model.method = cfg.method.name 
     model.i = 0
     return model 
-
-# This baseline combines the token_selection / batch_compression baselines in  a static way where both percentages of compression needs to be specified 
-def batch_token_static(cfg):
-
-    # Apply channel to the gradient 
-    def backward_channel(module, grad_output):
-
-        # Apply the channel 
-        new_output = channel(grad_output[0])
-        
-        # Must return as a Tuple so the ","
-        return (new_output, )
-    
-    # Apply channel to the activations 
-    def forward_channel(module, args, output):
-        if model.training and model.batch_compression_rate < 1.0:
-            output, model.labels = merge_batch(output, model.labels, model.batch_compression_rate)
-
-        model.stored_activations = output
-
-        # Apply the channel
-        new_output = channel(output)
-
-        return new_output
-
-        # Delta forward hook 
-    
-    # Select tokens 
-    def select_tokens(module, input, output):
-
-        if model.tokens_percentage < 1:
-            B, N, C = output.shape
-            class_tkn_attention = module.attn.class_token_attention
-
-            # Calculate percentage of tokens to keep at each block in order to reach the percentage goal
-            block_percentage = model.tokens_percentage ** (1 / split_index)
-            
-            # Compute the number of tokens to keep (excluding class token)
-            num_tokens_to_keep = int(block_percentage * N)
-            
-            # Compute average attention across the batch (excluding class token)
-            avg_attention = class_tkn_attention[:, 1:].mean(dim=0)  # Shape: (N-1,)
-            sorted_indices = torch.argsort(avg_attention, descending=True)
-            selected_indices = sorted_indices[:num_tokens_to_keep] + 1  # Shift to account for class token
-            selected_indices = selected_indices.unsqueeze(0).expand(B, -1)  # Use same indices for all samples
-        
-            # Concatenate class token with selected tokens
-            batch_indices = torch.arange(B, device=output.device).unsqueeze(1)
-            output = torch.cat([output[:, :1, :], output[batch_indices, selected_indices, :]], dim=1)
-        
-        return output
-
-    # This custom attention functions adds for each module a "class_token_attention" variable, the forward is modified just to store it.
-    class CustomAttention(torch.nn.Module):
-        def __init__(self, num_heads, head_dim, attn_drop, q_norm, k_norm, scale, qkv, proj, proj_drop):
-            super().__init__()
-
-            self.num_heads = num_heads
-            self.head_dim = head_dim
-            self.attn_drop = attn_drop
-            self.q_norm = q_norm
-            self.k_norm = k_norm
-            self.scale = scale
-            self.qkv = qkv
-            self.proj = proj
-            self.proj_drop = proj_drop
-            self.class_token_attention = None 
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            # Same forward of the original class 
-            B, N, C = x.shape
-            qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            q, k, v = qkv.unbind(0)
-            q, k = self.q_norm(q), self.k_norm(k)
-            q = q * self.scale
-            attn = q @ k.transpose(-2, -1)
-            attn = attn.softmax(dim=-1)
-            attn = self.attn_drop(attn) 
-            x = attn @ v
-            x = x.transpose(1, 2).reshape(B, N, C)
-            x = self.proj(x)
-            x = self.proj_drop(x)
-
-            # Get the class token, take the average over the heads and store it 
-            self.class_token_attention = attn[:, :, 0, :].mean(dim=1) 
-
-            return x
-
-     # Function to merge the batches    
-    
-        # Merge batches with the same label
-    
-    # Merge batches 
-    def merge_batch(batch, labels, compression_rate):
-        # Get the shape of the batch
-        batch_size, _, _ = batch.shape
-
-        # Get the unique labels and the number of unique labels
-        unique_labels = torch.unique(labels)
-        number_of_unique_labels = len(unique_labels)
-
-        # Compute the max compression obtainable compressing same label inputs 
-        max_compression_rate = number_of_unique_labels / batch_size 
-
-        # Create a variable that is true if we can achieve the needed compression rate just with same label compression 
-        just_same_label_compression = int(max_compression_rate < compression_rate)
-
-        # Create variables for the new batch and labels 
-        merged_batches = []
-        merged_labels = []
-
-        # Compress same label inputs 
-        for lab in unique_labels:
-            # Select samples for the current label.
-            group_idx = (labels == lab).nonzero(as_tuple=True)[0]
-            group = batch[group_idx]
-            num_samples = group.shape[0]
-
-            # Determine the target number of samples for this group.
-            target_samples = max(1, round(num_samples * compression_rate) * just_same_label_compression)
-
-            # Partition the group into approximately equal chunks.
-            chunks = torch.chunk(group, target_samples, dim=0)
-            avg_chunks = torch.stack([chunk.mean(dim=0) for chunk in chunks])
-            merged_batches.append(avg_chunks)
-            merged_labels.append(torch.full((avg_chunks.shape[0],), lab, dtype=labels.dtype, device=labels.device))
-
-        # Concatenate the merged groups from all labels (so far)
-        merged_batch = torch.cat(merged_batches, dim=0)
-        merged_labels = torch.cat(merged_labels, dim=0)
-
-
-        # If same-label compression is not enough, apply cross-label compression
-        if not just_same_label_compression:
-
-            # Calculate the target final size of the batch
-            target_size = int(batch_size * compression_rate)
-
-            # # Create one-hot encoded labels
-            merged_labels = F.one_hot(merged_labels, num_classes=cfg.dataset.num_classes).float()
-
-            # Split into target number of chunks
-            chunks = torch.chunk(merged_batch, target_size, dim=0)
-            label_chunks = torch.chunk(merged_labels, target_size, dim=0)
-
-            # Average each chunk
-            merged_batch = torch.stack([chunk.mean(dim=0) for chunk in chunks])
-            merged_labels = torch.stack([chunk.mean(dim=0) for chunk in label_chunks])  # Soft labels
-
-        return merged_batch, merged_labels
-    
-    # Initialize  model  
-    model = hydra.utils.instantiate(cfg.model)
-
-    # Get channel 
-    channel =  hydra.utils.instantiate(cfg.comm.channel)
-
-     # Get split index 
-    split_index = cfg.hyperparameters.split_index
-        
-    # Register the hooks (we are assuning we have a ViT with blocks modules ) 
-    model.blocks[split_index - 1].register_full_backward_pre_hook(backward_channel)
-    model.blocks[split_index - 1].register_forward_hook(forward_channel)
-
-    # Replace the attention layers in the model for blocks before the splitting index 
-    for block in model.blocks[:split_index]:
-        
-        block.attn = CustomAttention(
-        num_heads=block.attn.num_heads,
-        head_dim=block.attn.head_dim,
-        attn_drop=block.attn.attn_drop,
-        q_norm=block.attn.q_norm,
-        k_norm=block.attn.k_norm,
-        scale = block.attn.scale,
-        qkv = block.attn.qkv,
-        proj = block.attn.proj,
-        proj_drop = block.attn.proj_drop)
-        block.register_forward_hook(select_tokens)
-    
-    # Add attributes to the model 
-    model.channel = channel
-    model.labels = 0
-    model.tokens_percentage  = cfg.method.parameters.tokens_percentage
-    model.batch_compression_rate = cfg.method.parameters.batch_compression_rate
-    model.method = cfg.method.name 
-
-
-    return model
 
 # GALORE 
 def galore(cfg):

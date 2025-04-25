@@ -1,0 +1,5 @@
+- method.parameters.energy_threshold=0.9
+- method.parameters.compression=0.7
+- method.parameters.freeze_probability=0.3
+- method.parameters.update_frequency=10
+- hyperparameters.snr=-10

@@ -9,7 +9,7 @@ train:
         size: 224
       - _target_: torchvision.transforms.RandomHorizontalFlip
       - _target_: torchvision.transforms.ToTensor
-  root: ${core.dataset_root}
+  root: ${core.dataset_path}
   download: Yes
 
 test:
@@ -24,7 +24,7 @@ test:
       - _target_: torchvision.transforms.CenterCrop
         size: 224  # Consistent cropping from center
       - _target_: torchvision.transforms.ToTensor
-  root: ${core.dataset_root}
+  root: ${core.dataset_path}
   download: Yes
 
 name : food-101

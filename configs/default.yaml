@@ -1,22 +1,23 @@
 # Default Configurations 
 defaults:
-  - comm: full_analogic_channel
+  - communication: standard
   - dataset: flowers_102
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : simple_split_learning_baseline
+  - method : classic_split_learning
   - _self_
 
 # IDK if this needs to be fixed 
 hyperparameters:
-  snr:   10     # Sound to noise ratio 
+  snr:   0     # Sound to noise ratio
+  max_symbols: 18912       # Max number of symbols that can pass through the channel  ( 18912 = 197 x 192 / 2 )
   split_index : 3  # Where to split the network
-  experiment_name : Prova  # Name of the experiment 
+  experiment_name : baselines  # Name of the experiment 
  
 
-# Set roots for results, datasets and plots 
+# Set folders for results, datasets and plots 
 core:
-  dataset_root: ./data
+  dataset_path: ./data
   results_path: ./results
   plots_path : ./plots
 

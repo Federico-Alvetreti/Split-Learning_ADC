@@ -1,3 +1,0 @@
-channel:
-  _target_: scripts.comm_functions.Gaussian_Noise_Analogic_Channel
-  snr: ${hyperparameters.snr}

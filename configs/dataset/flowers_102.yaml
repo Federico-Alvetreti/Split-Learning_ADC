@@ -10,7 +10,7 @@ train:
         padding: 24
       - _target_: torchvision.transforms.RandomHorizontalFlip
       - _target_: torchvision.transforms.ToTensor
-  root: ${core.dataset_root}
+  root: ${core.dataset_path}
   download: false
 
 test:
@@ -23,7 +23,7 @@ test:
       - _target_: torchvision.transforms.ToTensor
       - _target_: torchvision.transforms.Resize
         size: [224, 224]
-  root: ${core.dataset_root}
+  root: ${core.dataset_path}
   download: false
   
 name : flowers-102
