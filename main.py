@@ -32,20 +32,23 @@ def main(cfg):
 
     # Set device  
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+
     # Get hyperparameters 
     batch_size = cfg.dataset.batch_size
     epochs = cfg.dataset.epochs 
 
     # Get datasets 
-    train_dataset = hydra.utils.instantiate(cfg.dataset.train)
-    val_dataset = hydra.utils.instantiate(cfg.dataset.test)
+    to_download = not os.path.exists(cfg.dataset.train.root)
+
+    train_dataset = hydra.utils.instantiate(cfg.dataset.train, download=to_download, _convert_="partial")
+    val_dataset = hydra.utils.instantiate(cfg.dataset.test, _convert_="partial")
 
     # Compress the train dataset when using JPEG method 
     if cfg.method.name == "JPEG":
         train_dataset = filter_dataset_by_jpeg(train_dataset, cfg)
         if train_dataset == 0:
-            return 
+            return
+
 
     # Get dataloaders
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)
@@ -53,7 +56,7 @@ def main(cfg):
 
     # Get model 
     comm_model = hydra.utils.call(cfg.method.function, cfg = cfg).to(device)
-    
+
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
 

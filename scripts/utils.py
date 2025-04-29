@@ -47,7 +47,6 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot):
     # Get batch loss and accuracy
     batch_loss = loss(batch_predictions, batch_labels)
 
-
     # Store the losses in the model if required  
     if hasattr(model, "last_losses"):
        model.last_losses.append(batch_loss)

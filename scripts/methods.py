@@ -2,6 +2,8 @@ import torch
 import hydra
 import torch.nn.functional as F
 import torch.nn as nn
+
+from scripts.channel import AWGN
 from scripts.utils import freeze_edge, train_all
 import random 
 
@@ -29,10 +31,10 @@ def classic_split_learning(cfg):
         if model.training:
             # Apply the channel 
             grad_output = channel(grad_output[0])
-        
-        # Must return as a Tuple so the ","
+
+       # Must return as a Tuple so the ","
         return (grad_output, )
-    
+
     # Apply channel to the activations 
     def forward_channel(module, args, output):
         if model.training:
@@ -46,20 +48,22 @@ def classic_split_learning(cfg):
 
     # Get split index 
     split_index = cfg.hyperparameters.split_index
-    
+
     # Get Encoder, Decoder and Channel 
     encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
     decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     channel = hydra.utils.instantiate(cfg.communication.channel)
 
+    channel = AWGN(snr=10)
+
     # Register the hooks on the encoder 
-    encoder.register_full_backward_pre_hook(backward_channel)
-    encoder.register_forward_hook(forward_channel)
+    # encoder.register_full_backward_pre_hook(backward_channel)
+    # encoder.register_forward_hook(forward_channel)
 
     # Add encoder and decoder to the model 
     blocks_before = model.blocks[:split_index]
     blocks_after = model.blocks[split_index:]
-    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
+    model.blocks = nn.Sequential(*blocks_before, encoder, channel, decoder, *blocks_after)
 
     # Channel and name  attributes   
     model.channel = channel
@@ -68,7 +72,7 @@ def classic_split_learning(cfg):
     # Set all trainable 
     train_all(model)
 
-    return model   
+    return model
 
 # Baseline where the whole dataset is compressed and sent to the server where the training happens 
 def JPEG(cfg):
