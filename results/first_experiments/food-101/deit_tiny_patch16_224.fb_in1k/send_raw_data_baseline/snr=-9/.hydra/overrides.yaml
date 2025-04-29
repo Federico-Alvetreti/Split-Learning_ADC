@@ -1,4 +1,0 @@
-- hyperparameters.snr=-9
-- method=send_raw_data_baseline
-- model=deit_tiny_patch16_224
-- dataset=food_101

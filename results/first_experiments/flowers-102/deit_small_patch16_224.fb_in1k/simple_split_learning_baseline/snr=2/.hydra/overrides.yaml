@@ -1,4 +1,0 @@
-- hyperparameters.snr=2
-- method=simple_split_learning_baseline
-- model=deit_small_patch16_224
-- dataset=flowers_102

@@ -8,6 +8,8 @@ from torch.utils.data import Dataset
 import numpy as np
 import hydra 
 from copy import deepcopy
+import warnings
+from torchvision import transforms
 
 # Standard training phase 
 def training_phase(model, train_data_loader, loss, optimizer, device, plot):
@@ -194,17 +196,19 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
 # Filters a dataset object to keep the images that can be compressed using JPEG with the current SNR and k 
 def filter_dataset_by_jpeg(dataset, cfg):
 
-    # Create a "raw" dataset that doesn't apply any transformation to the images 
+    # Create a "raw" dataset that applies just randomcrop transform 
     raw_dataset = hydra.utils.instantiate(
         cfg.dataset.train,
-        transform=None)
+        transform=transforms.RandomCrop(224))
 
     # Compute the maximum bytes that can pass through the channel 
     snr = cfg.hyperparameters.snr
-    max_symbols = cfg.hyperparameters.max_symbols
+    k = cfg.method.parameters.k
+    number_of_bits_of_full_image =  224*224*3*8 # image_size(224*224*3) * bits_per_number(8)
+    max_symbols=  round(k * number_of_bits_of_full_image)   
     linear_snr =  10**(snr / 10)
-    max_bits_per_symbol = np.log2(1 + linear_snr)
-    max_bytes = max_symbols * max_bits_per_symbol / 8
+    bits_per_symbol = np.log2(1 + linear_snr)
+    max_bytes = max_symbols * bits_per_symbol / 8
     
     # Set max and min quality of images 
     max_quality, min_quality = 95, 1
@@ -220,7 +224,7 @@ def filter_dataset_by_jpeg(dataset, cfg):
         # Get image and its shape 
         sample = raw_dataset[idx]
         img = sample[0] if isinstance(sample, (tuple, list)) else sample
-
+        
         # Find the highest quality that fits the budget
         for q in range(max_quality, min_quality - 1, -1):
 
@@ -242,7 +246,8 @@ def filter_dataset_by_jpeg(dataset, cfg):
     pct = len(valid_idxs) * 100.0 / len(raw_dataset)
 
     if len(valid_idxs) == 0:
-        raise ValueError("No valid images were retained. Aborting.")
+        warnings.warn("No valid images were retained. Continuing anyway.", UserWarning)
+        return 0 
 
     avg_quality /= len(valid_idxs)
     print(f"Kept {len(valid_idxs)}/{len(raw_dataset)} images ({pct:.1f}%) with an average quality of {avg_quality}.")
@@ -255,13 +260,25 @@ def filter_dataset_by_jpeg(dataset, cfg):
             self.indices     = indices
             self.quality_map = quality_map
             self.total_communication = communication
+            # Modify the original transform to remove any RandomCrop
+            self.filtered_transform = self._remove_random_crop(self.full_ds.transform)
+
+        def _remove_random_crop(self, transform):
+            """Remove RandomCrop from a transform composition."""
+            if isinstance(transform, transforms.Compose):
+                new_transforms = []
+                for t in transform.transforms:
+                    if not isinstance(t, transforms.RandomCrop):
+                        new_transforms.append(t)
+                return transforms.Compose(new_transforms)
+            else:
+                # If transform is not a Compose, return it as-is
+                return transform
 
         def __len__(self):
             return len(self.indices)
 
         def __getitem__(self, i):
-
-            # Get the image
             orig_idx = self.indices[i]
             sample = self.raw_ds[orig_idx]
             if isinstance(sample, (tuple, list)):
@@ -269,19 +286,19 @@ def filter_dataset_by_jpeg(dataset, cfg):
             else:
                 img, label = sample, None
 
-            # Compress at the pre‑computed quality
             q = self.quality_map[orig_idx]
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=q)
             buf.seek(0)
             compressed = Image.open(buf).convert(img.mode)
 
-            # Apply original transform 
-            out = self.full_ds.transform(compressed)
+            # Apply the original transform without RandomCrop
+            out = self.filtered_transform(compressed)
 
             return (out, label) if label is not None else out
 
     return JPEGCompressedDataset(raw_dataset, dataset, valid_idxs, quality_map)
+
 
 # Function used to freeze edge layers 
 def freeze_edge(model,split_index):

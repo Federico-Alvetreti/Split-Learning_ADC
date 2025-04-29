@@ -1,4 +1,0 @@
-- hyperparameters.snr=-9
-- method=send_raw_data_baseline
-- model=deit_small_patch16_224
-- dataset=flowers_102

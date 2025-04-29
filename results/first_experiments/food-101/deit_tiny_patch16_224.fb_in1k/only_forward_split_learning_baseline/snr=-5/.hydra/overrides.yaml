@@ -1,4 +1,0 @@
-- hyperparameters.snr=-5
-- method=only_forward_split_learning_baseline
-- model=deit_tiny_patch16_224
-- dataset=food_101

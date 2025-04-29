@@ -1,10 +1,10 @@
 channel:
   _target_: scripts.communication.Gaussian_Noise_Analogic_Channel
   snr: ${hyperparameters.snr}
-  k: ${hyperparameters.max_symbols}
 
 encoder:
   _target_: scripts.communication.Encoder
+  output_size: 0.5
   n_layers: 2
   normalize: true
   drop_last_activation: true

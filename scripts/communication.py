@@ -2,16 +2,16 @@ import torch
 import torch.nn as nn
 from typing import Union, Tuple, Sequence
 from scripts.utils import tensor_to_bytes, get_ffn
-    
+
+from math import floor
 # Analogic Gaussian Noise Channel 
 class Gaussian_Noise_Analogic_Channel(nn.Module):
-    def __init__(self, snr: Union[float, Tuple[float, float]], max_symbols: int):
+    def __init__(self, snr: Union[float, Tuple[float, float]]):
         super().__init__()
 
         assert snr is not None, "SNR must be specified."
         self.snr = snr  # Single SNR value or range
         self.total_communication = 0
-        self.max_symbols = max_symbols
 
     def get_snr(self, batch_size: int, device: Union[str, torch.device] = "cpu"):
         """Returns a fixed or sampled SNR value."""
@@ -33,11 +33,6 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
         return x + noise
 
     def forward(self, x: torch.Tensor, snr=None):
-
-        # Get activations size 
-        _,R,C = x.size()
-        if R*C > self.max_symbols:
-            raise ValueError("Too much symbols in the channel.")
 
         """Adds Gaussian noise to the input tensor based on the given SNR."""
         # Add the total communication cost as the number of bits sent through the channel
@@ -71,7 +66,7 @@ class Encoder(nn.Module):
         super().__init__(*args, **kwargs)
 
         # Resolve float output_size
-        self.output_size = (max(int(input_size * output_size), 1) if isinstance(output_size, float) else output_size)
+        self.output_size = (max(floor(input_size * output_size), 1) if isinstance(output_size, float) else output_size)
 
         # Get the real and complex feed forward networks 
         self.real_ffn, self.complex_ffn = get_ffn(input_size=input_size,

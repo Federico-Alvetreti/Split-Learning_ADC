@@ -6,6 +6,15 @@ import json
 
 # Custom functions 
 from scripts.utils import training_schedule, filter_dataset_by_jpeg
+from omegaconf import OmegaConf
+
+
+def flatten_params(params):
+    if isinstance(params, dict):
+        return "_".join(f"{k}={v}" for k, v in params.items())
+    return str(params)
+OmegaConf.register_new_resolver("eval", eval)
+OmegaConf.register_new_resolver("flatten_params", flatten_params)
 
 
 # Hydra configuration 
@@ -35,6 +44,8 @@ def main(cfg):
     # Compress the train dataset when using JPEG method 
     if cfg.method.name == "JPEG":
         train_dataset = filter_dataset_by_jpeg(train_dataset, cfg)
+        if train_dataset == 0:
+            return 
 
     # Get dataloaders
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size)

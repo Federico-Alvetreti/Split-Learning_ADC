@@ -2,13 +2,14 @@ function:
   _target_: scripts.methods.ours_static
   _recursive_: false
 name: ours
+k : ${eval:"${communication.encoder.output_size} * 192 / (225*225*3)"}
 parameters:
   # Galore parameters
   update_frequency: 3
   energy_threshold: 0.9
 
   # Compression
-  compression: 0.6
+  compression: 0.7
 
   # Random_freeze
   freeze_probability : 0.2

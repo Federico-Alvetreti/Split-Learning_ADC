@@ -46,15 +46,9 @@ def classic_split_learning(cfg):
 
     # Get split index 
     split_index = cfg.hyperparameters.split_index
-
-    # Get max number of symbols 
-    max_symbols = cfg.hyperparameters.max_symbols
-
-    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
-    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
     
     # Get Encoder, Decoder and Channel 
-    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
     decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     channel = hydra.utils.instantiate(cfg.communication.channel)
 
@@ -207,8 +201,7 @@ def delta(cfg):
     # Freeze blocks that do not have enough budget and normalize budgets
     def freeze_blocks(module, input):
         # Get blocks budgets
-        budgets = torch.tensor([block.budget for block in model.blocks], dtype=torch.float32)
-        print(budgets)
+        budgets = torch.tensor([block.budget for block in model.raw_blocks], dtype=torch.float32)
 
         # Apply softmax to budgets to get probabilities
         probabilities = torch.nn.functional.softmax(budgets, dim=0)
@@ -218,7 +211,7 @@ def delta(cfg):
         sampled_indices = torch.multinomial(probabilities, K, replacement=False).tolist()
 
         # Freeze all blocks except the sampled ones
-        for i, block in enumerate(model.blocks):
+        for i, block in enumerate(model.raw_blocks):
             for param in block.parameters():
                 param.requires_grad = i in sampled_indices  # Only sampled blocks remain trainable
         
@@ -230,20 +223,21 @@ def delta(cfg):
     # Get split index 
     split_index = cfg.hyperparameters.split_index
 
-    # Get max number of symbols 
-    max_symbols = cfg.hyperparameters.max_symbols
-
-    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
-    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
-    
     # Get Encoder, Decoder and Channel 
-    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
     decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     channel = hydra.utils.instantiate(cfg.communication.channel)
 
     # Register the hooks on the encoder 
     encoder.register_full_backward_pre_hook(backward_channel)
     encoder.register_forward_hook(forward_channel)
+
+
+    # Add encoder and decoder to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
+    model.raw_blocks = nn.Sequential(*blocks_before, *blocks_after)
 
     # Channel and name attributes   
     model.channel = channel
@@ -253,7 +247,7 @@ def delta(cfg):
     train_all(model)
 
     # For each block register the budget update and token selection mechanism 
-    for block in model.blocks:  
+    for block in model.raw_blocks:  
 
         # Change the attention in order to store the class_tokens attention scores 
         block.attn = CustomAttention(
@@ -274,11 +268,6 @@ def delta(cfg):
         # Register the budget update  and token selection mechanism
         block.register_forward_hook(update_budget)
         block.register_forward_hook(select_tokens)
-
-    # Add encoder and decoder to the model 
-    blocks_before = model.blocks[:split_index]
-    blocks_after = model.blocks[split_index:]
-    model.blocks = nn.Sequential(*blocks_before, encoder, decoder, *blocks_after)
 
     # Register the mechanism to freeze blocks before the mmodel 
     model.register_forward_pre_hook(freeze_blocks)
@@ -469,14 +458,8 @@ def ours_static(cfg):
     # Get split index 
     split_index = cfg.hyperparameters.split_index
 
-    # Get max number of symbols 
-    max_symbols = cfg.hyperparameters.max_symbols
-
-    # Compute the necessary compression as the max number of symbols divided by the normal activation size 
-    autoencoder_compression = min(0.5, max_symbols / model.num_features * 197)
-    
     # Get Encoder, Decoder and Channel 
-    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features, output_size = autoencoder_compression)
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
     decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     channel = hydra.utils.instantiate(cfg.communication.channel)
 
