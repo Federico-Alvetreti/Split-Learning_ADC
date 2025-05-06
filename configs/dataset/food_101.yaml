@@ -30,5 +30,4 @@ test:
 name : food-101
 num_classes : 101 
 epochs : 5 
-batch_size : 128
-pre_training_epochs : 10
+batch_size : 256

@@ -30,16 +30,12 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot):
     batch_input = batch[0].to(device)
     batch_labels = batch[1].to(device)
 
-    # Handle batch_compression method 
-    if hasattr(model, "labels"):
-      model.labels = batch_labels 
-
     # Get batch predictions
     batch_predictions = model(batch_input)
 
     # Handle batch_compression method 
-    if hasattr(model, "labels"):
-      batch_labels = model.labels
+    if hasattr(model, "compressor_module"):
+      batch_labels = model.compressor_module.compress_labels(batch_labels)
       batch_accuracy = 0
     else:
       batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
@@ -299,7 +295,6 @@ def filter_dataset_by_jpeg(dataset, cfg):
 
     return JPEGCompressedDataset(raw_dataset, dataset, valid_idxs, quality_map)
 
-
 # Function used to freeze edge layers 
 def freeze_edge(model,split_index):
     # Freeze initial encoding layers 
@@ -351,3 +346,5 @@ def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
             models.append(_model)
 
         return models
+
+

@@ -3,4 +3,4 @@ function:
   _recursive_: false
 name : JPEG
 parameters: null
-k: 0.05      # Percentage of the symbols to send through the channel 
+k: 0.05       

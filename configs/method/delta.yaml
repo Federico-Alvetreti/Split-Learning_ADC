@@ -2,6 +2,6 @@ function:
   _target_: scripts.methods.delta
   _recursive_: false
 name: DELTA
-k : ${eval:"${communication.encoder.output_size} * 192 / (225*225*3)"}
+k : ${eval:"(${communication.encoder.output_size} * 192 *197 ) / (225*225*3)"}
 parameters:
   K : 9

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Sweep values for each parameter
-snrs=(-10 -5 0  5 10)
-autoencoder_compressions=(0.5 0.4 0.3 0.2 0.1)
+snrs=(10)
+autoencoder_compressions=(0.5)
 methods=(delta classic_split_learning)
 
 # Loop over every combination
