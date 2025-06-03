@@ -41,5 +41,4 @@ test:
   
 name : flowers-102
 num_classes : 102 
-epochs : 70 
 batch_size : 128

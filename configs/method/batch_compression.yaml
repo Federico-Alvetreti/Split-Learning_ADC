@@ -1,6 +1,0 @@
-function:
-  _target_: scripts.methods.batch_compression
-  _recursive_: false
-name: batch_compression
-parameters:
-  compression_rate: 0.2

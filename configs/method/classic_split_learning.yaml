@@ -2,5 +2,4 @@ function:
   _target_: scripts.methods.classic_split_learning
   _recursive_: false
 name : classic_split_learning
-k : ${eval:"(${communication.encoder.output_size} * 192 *197 ) / (225*225*3)"}
 parameters: null

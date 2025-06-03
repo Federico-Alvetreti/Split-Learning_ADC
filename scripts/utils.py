@@ -8,87 +8,76 @@ from torch.utils.data import Dataset
 import numpy as np
 import hydra 
 from copy import deepcopy
-import warnings
 from torchvision import transforms
 
 # Standard training phase 
-def training_phase(model, train_data_loader, loss, optimizer, device, plot):
-  if plot:
-    print("\nTraining phase: ")
+def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication):
 
-  # Initialize train loss and accuracy
-  train_loss = 0.0
-  train_accuracy = 0.0
+    if plot:
+        print("\nTraining phase: ")
 
-  # Set the model into training mode
-  model.train()
+    # Initialize train loss and accuracy
+    train_loss = 0.0
+    train_accuracy = 0.0
 
-  # Forward the train set
-  for batch in tqdm(train_data_loader, disable=not plot):
+    # Set the model into training mode
+    model.train()
 
-    # Get input and labels from batch
-    batch_input = batch[0].to(device)
-    batch_labels = batch[1].to(device)
+    # Counter   
+    iterations = 0
+    # Forward the train set
+    for batch in tqdm(train_data_loader, disable=not plot):
 
-    # Get batch predictions
-    batch_predictions = model(batch_input)
+        # Get input and labels from batch
+        batch_input = batch[0].to(device)
+        batch_labels = batch[1].to(device)
 
-    # Handle batch_compression method 
-    if hasattr(model, "compressor_module"):
-      batch_labels = model.compressor_module.compress_labels(batch_labels)
-      batch_accuracy = 0
-    else:
-      batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
+        # Get batch predictions
+        batch_predictions = model(batch_input)
 
-    # Get batch loss and accuracy
-    batch_loss = loss(batch_predictions, batch_labels)
-
-
-    # Store the losses in the model if required  
-    if hasattr(model, "last_losses"):
-       model.last_losses.append(batch_loss)
-       model.last_losses = model.last_losses[-2:]
-
-    # Store them
-    train_loss += batch_loss.item()
-    train_accuracy += batch_accuracy
-
-    # Backpropagation
-    if hasattr(model, "loss"):
-       (batch_loss + model.loss).backward()
-    else:
-      batch_loss.backward()
-
-    # Update and zero out previous gradients
-    optimizer.step()
-    optimizer.zero_grad()
-
-    # Freeze edge state "C"
-    if model.method == "freeze":
-      while model.state == 2:
-
-        # Forward last activations 
-        batch_predictions = model.stored_activations_forward()
         
-        # Batch loss 
-        batch_loss = loss(batch_predictions, batch_labels)
-        model.last_losses.append(batch_loss)
-        model.last_losses = model.last_losses[-2:]
 
-        # Backpropagation
-        batch_loss.backward()
+        # Get batch accuracy + handle batch compression for labels  
+        if hasattr(model, "compressor_module"):
+            batch_labels = model.compressor_module.compress_labels(batch_labels, len(train_data_loader.dataset.classes))
+            batch_accuracy = 0
+        else:
+            batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
+
+        # Get batch loss
+        batch_loss = loss(batch_predictions, batch_labels)
+
+        iterations+=1
+
+        # Store them
+        train_loss += batch_loss.detach().cpu().item()
+        train_accuracy += batch_accuracy
+
+        # Compute gradients
+        batch_loss.backward()  
 
         # Update and zero out previous gradients
         optimizer.step()
         optimizer.zero_grad()
 
+        # Store communication cost 
+        if hasattr(model, "channel"):
+            current_communication_cost = model.channel.total_communication
+            # If the current communication cost is above the max communication break the training 
+            if  current_communication_cost > max_communication:
+                break
+        elif model.method=="JPEG":
+            current_communication_cost = train_data_loader.dataset.total_communication
+            
+            # If the current communication cost is above the max communication break the training 
+            if  current_communication_cost > max_communication:
+                break
 
+    # Compute average loss and accuracy
+    average_train_loss = train_loss / iterations
+    average_train_accuracy = train_accuracy / iterations
 
-  # Compute average loss and accuracy
-  average_train_loss = train_loss / len(train_data_loader)
-  average_train_accuracy = train_accuracy / len(train_data_loader)
-
-  return average_train_loss, average_train_accuracy
+    return average_train_loss, average_train_accuracy
 
 # Standard validation phase
 def validation_phase(model, val_data_loader, loss, device, plot):
@@ -128,23 +117,25 @@ def validation_phase(model, val_data_loader, loss, device, plot):
   return average_val_loss, average_val_accuracy
 
 # Standard training / validation cicle
-def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_epochs, device, loss=torch.nn.CrossEntropyLoss(), min_epochs = 20,  plot=True, early_stop=False, patience=5, tol=1e-2):
-    """Train for up to n_epochs, or until convergence if early_stop=True."""
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, loss=torch.nn.CrossEntropyLoss(),  plot=True, patience=10):
+
 
     train_losses, train_accuracies = [], []
     val_losses, val_accuracies = [], []
     if hasattr(model, "channel") or model.method == "JPEG":
         communication_costs = []
 
+    # Convergence check 
     best_val_loss = float('inf')
     epochs_no_improve = 0
 
-    for epoch in range(1, n_epochs + 1):
+    for epoch in range(1, 450):
+        torch.cuda.empty_cache()
         if plot:
             print(f"\n\nEPOCH {epoch}")
 
         # Training and validation phases 
-        avg_train_loss, avg_train_accuracy = training_phase(model, train_data_loader, loss, optimizer, device, plot)
+        avg_train_loss, avg_train_accuracy = training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication)
         avg_val_loss, avg_val_accuracy = validation_phase(model, val_data_loader, loss, device, plot)
 
         # Store results 
@@ -153,29 +144,35 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
         val_losses.append(avg_val_loss)
         val_accuracies.append(avg_val_accuracy)
 
-        # Store communication cost 
-        if hasattr(model, "channel"):
-            communication_costs.append(model.channel.total_communication)
-        elif model.method=="JPEG":
-           communication_costs.append(train_data_loader.dataset.total_communication)
-
         if plot:
             print(f"\nTrain loss: {avg_train_loss:.4f}; Val loss: {avg_val_loss:.4f}")
             print(f"Train accuracy: {avg_train_accuracy:.2f}; Val accuracy: {avg_val_accuracy:.2f}")
 
-        # Early stopping 
-        if early_stop:
-            # If we've improved by more than tol, reset counter
-            if best_val_loss - avg_val_loss > tol:
-                best_val_loss = avg_val_loss
-                epochs_no_improve = 0
-            else:
-                epochs_no_improve += 1
-
-            if epochs_no_improve >= patience and epoch > min_epochs:
-                if plot:
-                    print(f"\nStopping early at epoch {epoch} (no validation loss improvement in {patience} epochs).")
+        # Store communication cost 
+        if hasattr(model, "channel"):
+            communication_costs.append(model.channel.total_communication)
+            # If the communication cost exceeds the max communication stop. 
+            if communication_costs[-1] > max_communication:
                 break
+        # Handle the cases of JPEG and Normal training, where they need just an epoch to train 
+        elif model.method=="JPEG":
+            communication_costs.append(train_data_loader.dataset.total_communication)
+            break
+        else:
+            break
+
+
+        # Convergence check: early stopping if val loss doesn't improve in tot epochs 
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                if plot:
+                    print(f"⏹️ Early stopping: no improvement in val loss for {patience} epochs.")
+                break
+
 
     # Collect results
     results = {
@@ -187,6 +184,7 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, n_ep
     if hasattr(model, "channel") or model.method == "JPEG":
         results["Communication cost"] = communication_costs
 
+
     return results
 
 # Filters a dataset object to keep the images that can be compressed using JPEG with the current SNR and k 
@@ -195,13 +193,13 @@ def filter_dataset_by_jpeg(dataset, cfg):
     # Create a "raw" dataset that applies just randomcrop transform 
     raw_dataset = hydra.utils.instantiate(
         cfg.dataset.train,
-        transform=transforms.RandomCrop(224))
+        transform=transforms.Resize([224, 224]))
 
     # Compute the maximum bytes that can pass through the channel 
     snr = cfg.hyperparameters.snr
-    k = cfg.method.parameters.k
+    k_over_n = cfg.hyperparameters.k_over_n
     number_of_bits_of_full_image =  224*224*3*8 # image_size(224*224*3) * bits_per_number(8)
-    max_symbols=  round(k * number_of_bits_of_full_image)   
+    max_symbols=  round(k_over_n * number_of_bits_of_full_image)   
     linear_snr =  10**(snr / 10)
     bits_per_symbol = np.log2(1 + linear_snr)
     max_bytes = max_symbols * bits_per_symbol / 8
@@ -242,15 +240,14 @@ def filter_dataset_by_jpeg(dataset, cfg):
     pct = len(valid_idxs) * 100.0 / len(raw_dataset)
 
     if len(valid_idxs) == 0:
-        warnings.warn("No valid images were retained. Continuing anyway.", UserWarning)
-        return 0 
-
+        raise(ValueError("Can't train at this compression.", UserWarning))
+    
     avg_quality /= len(valid_idxs)
     print(f"Kept {len(valid_idxs)}/{len(raw_dataset)} images ({pct:.1f}%) with an average quality of {avg_quality}.")
-
-    # Build a Dataset wrapper that returns the compressed+transformed images
+    
+    # Build a Dataset wrapper that returns the compressed + transformed images
     class JPEGCompressedDataset(Dataset):
-        def __init__(self, raw_ds, full_ds, indices, quality_map):
+        def __init__(self, raw_ds, full_ds, indices, quality_map, communication):
             self.raw_ds      = raw_ds
             self.full_ds     = full_ds 
             self.indices     = indices
@@ -293,19 +290,7 @@ def filter_dataset_by_jpeg(dataset, cfg):
 
             return (out, label) if label is not None else out
 
-    return JPEGCompressedDataset(raw_dataset, dataset, valid_idxs, quality_map)
-
-# Function used to freeze edge layers 
-def freeze_edge(model,split_index):
-    # Freeze initial encoding layers 
-    for name, param in model.named_parameters():
-        if name in ["cls_token", "pos_embed", "patch_embed.proj.weight", "patch_embed.proj.bias"]:
-            param.requires_grad = False
-
-    # Freeze every block  before the split_index 
-    for block in model.blocks[:split_index]:
-        for param in block.parameters():
-            param.requires_grad = False
+    return JPEGCompressedDataset(raw_dataset, dataset, valid_idxs, quality_map, communication)
 
 # Function to train all parameters 
 def train_all(model):
@@ -347,4 +332,29 @@ def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
 
         return models
 
+
+def resolve_compression_rate(cfg):
+
+    # Compute baseline compression without any techniques
+    image_size = 224 * 224 * 3
+    activation_size = 192 * 197
+    encoder_compression = cfg.communication.encoder.output_size
+    standard_compression = encoder_compression * activation_size / image_size
+
+    # Desired overall compression ratio
+    k_over_n = cfg.hyperparameters.k_over_n
+    target_rate = k_over_n / standard_compression
+
+    
+    if cfg.method.name == "ours":
+        if target_rate >= 0.2:
+            batch_compression, token_compression = (1, max(target_rate,1))
+        else: 
+            batch_compression, token_compression = ( 5 * (target_rate / 5 )**0.5, (target_rate / 5 )**0.5)
+    
+        return (batch_compression, token_compression)
+    else:
+        if target_rate < 1: 
+            raise(ValueError("Can't train at this compression.", UserWarning))
+    
 

@@ -1,17 +1,24 @@
 import torch
 import torch.nn as nn
 from scripts.utils import tensor_to_bytes, get_ffn
-from math import floor
 
+GRADIENT_ENABLED = True
+
+def set_gradient_enabled(flag: bool):
+    global GRADIENT_ENABLED
+    GRADIENT_ENABLED = flag
 
 # Adds Additive White Gaussian Noise on tensors 
-def add_awgn_noise(tensor: torch.Tensor, snr: float) -> torch.Tensor:
+def add_awgn_noise(tensor: torch.Tensor, snr_range: float) -> torch.Tensor:
+
+    # Get random snr in [-snr, snr]
+    random_snr = torch.empty(1).uniform_(-snr_range, snr_range).item()  
 
     # Estimate signal power along the last dim (on tokens)
     signal_power = torch.mean(tensor**2, dim=-1, keepdim=True)
 
     # Compute noise power for the desired SNR
-    noise_power = signal_power / (10 ** (snr / 10))
+    noise_power = signal_power / (10 ** (random_snr / 10))
     std = torch.sqrt(noise_power)
 
     # Sample & scale noise
@@ -23,110 +30,35 @@ def add_awgn_noise(tensor: torch.Tensor, snr: float) -> torch.Tensor:
 # Classic analogic channel 
 class Gaussian_Noise_Analogic_Channel(nn.Module):
     def __init__(self,
-                  snr: float):
+                  snr_range: float):
         super().__init__()
-        self.snr = snr
+
+        self.snr_range = snr_range
         self.total_communication = 0
 
     def forward(self, input: torch.Tensor):
-        # Add noise in the forward 
-        self.total_communication += tensor_to_bytes(input)
-        noisy_output = add_awgn_noise(input, self.snr)
+
+        # If in training mode update communication cost and add noise 
+        if self.training:
+            self.total_communication += tensor_to_bytes(input)
+            input = add_awgn_noise(input, self.snr_range)
 
         # Simple backward noise hook 
         def _grad_hook(grad):
 
-            noisy_grad = add_awgn_noise(grad, self.snr)
-            self.total_communication += tensor_to_bytes(grad)
-      
-            return noisy_grad
-        
+            if not GRADIENT_ENABLED:
+                return None
+            else:
+                grad = add_awgn_noise(grad, self.snr_range)
+                self.total_communication += tensor_to_bytes(grad)
+                return grad
+            
         # Register hook
-        if noisy_output.requires_grad:
-            noisy_output.register_hook(_grad_hook)
+        if input.requires_grad:
+            input.register_hook(_grad_hook)
 
-        return noisy_output
-    
-# Classic analogic channel with SVD on backward 
-class Gaussian_Noise_Analogic_Channel_with_SVD(nn.Module):
-    def __init__(self,
-                 snr: float,
-                 update_frequency:int,
-                 energy_threshold:float):
-        super().__init__()
+        return input
 
-        # Get parameters 
-        self.snr = snr
-        self.energy_threshold = energy_threshold  
-        self.update_frequency = update_frequency # After how many backward iterations compute other projections 
-        
-        # Initialize timer and total communication variables 
-        self.total_communication = 0
-        self.t = 0 
-
-        # Initialize projection matrices 
-        self.server_right_proj_matrix = 0
-        self.server_left_proj_matrix = 0
-        self.device_right_proj_matrix = 0
-        self.device_left_proj_matrix = 0
-
-
-    def forward(self, input: torch.Tensor):
-
-        # Add noise in the forward 
-        self.total_communication += tensor_to_bytes(input)
-        noisy = add_awgn_noise(input, self.snr)
-
-        # Backward noise hook + noise + svd 
-        def _svd_grad_hook(G):
-
-            # If the update frequency has been achieved 
-            if self.t % self.update_frequency == 0 : 
-
-                # Get the average gradient 
-                G_mean = G.mean(dim=0)
-
-                # Do the Singular Value Decomposition on the average gradient 
-                U, S, V = torch.linalg.svd(G_mean, full_matrices=False)  # U: [m, min(m,n)], V: [min(m,n), n]
-                energy = S.pow(2)
-                total_energy = energy.sum()
-                cumulative_energy = torch.cumsum(energy, dim=0)
-                r = (cumulative_energy < (self.energy_threshold * total_energy)).sum().item() + 1
-                
-                # Update server projection matrices
-                self.server_left_proj_matrix = U[:, :r]
-                self.server_right_proj_matrix = V[:r, :]
-
-                # Update device projection matrices
-                self.device_left_proj_matrix = add_awgn_noise(self.server_left_proj_matrix, self.snr)
-                self.device_right_proj_matrix = add_awgn_noise(self.server_right_proj_matrix, self.snr)
-
-                # Update total communication 
-                self.total_communication += tensor_to_bytes(self.server_left_proj_matrix)  
-                self.total_communication += tensor_to_bytes(self.server_right_proj_matrix)
-
-            # Compute the projected representation using server projection matrices 
-            G =  torch.matmul(torch.matmul(self.server_left_proj_matrix.t().unsqueeze(0), G ), self.server_right_proj_matrix.t().unsqueeze(0))
-
-            # Apply the channel and update communication cost 
-            G = add_awgn_noise(G, self.snr)
-            self.total_communication += tensor_to_bytes(G)
-
-            # Reconstruct the gradient using device projection matrices 
-            G = torch.matmul(torch.matmul(self.device_left_proj_matrix.unsqueeze(0), G ), self.device_right_proj_matrix.unsqueeze(0))
-
-            # Update timer 
-            self.t += 1 
-
-            return G
-        
-        # Register hook to apply the backward function
-        if noisy.requires_grad:
-            noisy.register_hook(_svd_grad_hook)
-
-
-        return noisy
-    
 # Main Encoder 
 class Encoder(nn.Module):
     def __init__(self,
@@ -140,8 +72,10 @@ class Encoder(nn.Module):
         super().__init__(*args, **kwargs)
 
         # Resolve float output_size
-        self.output_size = (max(floor(input_size * output_size), 1) if isinstance(output_size, float) else output_size)
-
+        self.output_size = round(output_size * input_size) if isinstance(output_size, float) else output_size
+        if self.output_size == 0: 
+            raise ValueError("Can't train with this compression.")
+        
         # Get the real and complex feed forward networks 
         self.real_ffn, self.complex_ffn = get_ffn(input_size=input_size,
                                                     output_size=self.output_size,

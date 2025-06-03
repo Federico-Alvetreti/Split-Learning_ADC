@@ -18,7 +18,7 @@ class Store_Scores_Attention(nn.Module):
         q = q * self.attn.scale
         attn = q @ k.transpose(-2, -1)
         attn = attn.softmax(dim=-1)
-        self.class_token_attention = attn[:, :, 0, :].mean(dim=1)  # Save attention over class token
+        self.class_token_attention = attn[:, :, 0, :].mean(dim=1).detach()  # Save attention over class token
         attn = self.attn.attn_drop(attn)
         attn_output = attn @ v
         x = attn_output.transpose(1, 2).reshape(B, N, C)
@@ -104,15 +104,16 @@ class Delta_Block(nn.Module):
         # Update budget 
         self.update_budget(input_x, x)
 
-        # Select tokens 
-        x = self.select_tokens(x)
+        # Select token
+        if self.training:
+            x = self.select_tokens(x)
 
         return x
-    
 
+# 
 class Compressor_Block(nn.Module):
 
-    def __init__(self, block, batch_compression_rate, tokens_compression_rate, kmeans_iterations):
+    def __init__(self, block, batch_compression_rate, tokens_compression_rate):
         super().__init__()
 
         self.block = block
@@ -120,8 +121,8 @@ class Compressor_Block(nn.Module):
         self.K = None 
 
         self.batch_compression_rate = batch_compression_rate  
-        self.tokens_compression_rate = tokens_compression_rate   
-        self.kmeans_iterations = kmeans_iterations         
+        self.tokens_compression_rate = tokens_compression_rate
+        self.forward_happened = False  
 
     def merge_batches_and_select_tokens(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -129,18 +130,27 @@ class Compressor_Block(nn.Module):
         B, N, _ = x.shape
         device = x.device
         
-
-        K = max(1, int(self.batch_compression_rate * B))
+        
+        K = max(2, int(self.batch_compression_rate * B))
         self.K = K
-        num_tokens_to_keep = max(1, int(self.tokens_compression_rate * (N - 1)))
+        num_tokens_to_keep = max(1, int(self.tokens_compression_rate * (N-1)))
 
         # Use class token attention to cluster activations 
-        class_token_attention = self.block.attn.class_token_attention  
-        cluster_ids, centroids = kmeans(X=class_token_attention, num_clusters=K,  distance='euclidean', device=device)
+        class_token_attention = self.block.attn.class_token_attention
 
-        # Store ids and set device 
-        self.cluster_ids = cluster_ids.to(device)
-        centroids = centroids.to(device)
+        with torch.no_grad():
+            cluster_ids, centroids =  kmeans(X=class_token_attention,       # (B, D)
+                                            num_clusters=K,                # as before
+                                            distance='euclidean',          # as before
+                                            tol=1e-4,                      # convergence threshold
+                                            iter_limit=10,                 # ← stop after at most 10 iters
+                                            device=device,
+                                            tqdm_flag=False                # turn off the printouts
+                                            )
+
+        # Make sure these are plain tensors (no grad)
+        self.cluster_ids = cluster_ids.detach().to(device)
+        centroids = centroids.detach().to(device)
 
         merged_inputs = []
 
@@ -170,12 +180,13 @@ class Compressor_Block(nn.Module):
             x = self.merge_batches_and_select_tokens(x)
         return x
 
-    def compress_labels(self, labels: torch.Tensor) -> torch.Tensor:
+    def compress_labels(self, labels, num_classes) -> torch.Tensor:
         compressed = []
-    
         for k in range(self.K):
-            one_hot_labels = F.one_hot(labels, num_classes=102).float()
+            one_hot_labels = F.one_hot(labels, num_classes=num_classes).float()
             mask = self.cluster_ids == k  # Reuse this from forward logic
             grp_lbl = one_hot_labels[mask].mean(dim=0)  # (N, L)
-            compressed.append(grp_lbl)      
-        return torch.stack(compressed, dim=0)
+            compressed.append(grp_lbl) 
+        final_labels = torch.stack(compressed, dim=0)
+
+        return final_labels

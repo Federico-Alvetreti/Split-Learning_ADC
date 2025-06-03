@@ -1,0 +1,6 @@
+function:
+  _target_: scripts.methods.alast
+  _recursive_: false
+name: alast
+parameters:
+  K : 9
