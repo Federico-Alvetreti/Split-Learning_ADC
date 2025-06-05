@@ -1,57 +1,72 @@
 import torch
 import torch.nn as nn
 from scripts.utils import tensor_to_bytes, get_ffn
+import math 
+from typing import Sequence
 
-GRADIENT_ENABLED = True
 
-def set_gradient_enabled(flag: bool):
-    global GRADIENT_ENABLED
-    GRADIENT_ENABLED = flag
-
-# Adds Additive White Gaussian Noise on tensors 
-def add_awgn_noise(tensor: torch.Tensor, snr_range: float) -> torch.Tensor:
-
-    # Get random snr in [-snr, snr]
-    random_snr = torch.empty(1).uniform_(-snr_range, snr_range).item()  
-
-    # Estimate signal power along the last dim (on tokens)
-    signal_power = torch.mean(tensor**2, dim=-1, keepdim=True)
-
-    # Compute noise power for the desired SNR
-    noise_power = signal_power / (10 ** (random_snr / 10))
-    std = torch.sqrt(noise_power)
-
-    # Sample & scale noise
-    noise = torch.randn_like(tensor) * std
-    noisy_tensor = tensor + noise
-    
-    return noisy_tensor
-
-# Classic analogic channel 
+# Classic analogic channel with gaussian noise 
 class Gaussian_Noise_Analogic_Channel(nn.Module):
     def __init__(self,
-                  snr_range: float):
+                  snr_range:float,
+                  quantization_compression: float = 1.0):
         super().__init__()
 
         self.snr_range = snr_range
+        self.quantization_compression = quantization_compression
         self.total_communication = 0
+        self.dims = -1
+        self.previous_grad = torch.zeros(0)
+        self.actual_snr = 0
+
+
+    # Adds Additive White Gaussian Noise on tensors 
+    def add_awgn_noise(self, tensor: torch.Tensor) -> torch.Tensor:
+
+        # Get random snr in [-snr, snr]
+        random_snr = torch.empty(1).uniform_(-self.snr_range, self.snr_range).item()  
+        self.actual_snr = random_snr
+        # Estimate signal power
+        signal_power = torch.linalg.norm(tensor, ord=2, dim=self.dims, keepdim=True)
+        size = math.prod([tensor.size(dim=d) for d in self.dims]) if isinstance(self.dims, Sequence) else tensor.size(dim=self.dims)
+        signal_power = signal_power / size
+
+        # Compute noise power for the desired SNR
+        noise_power = signal_power / (10 ** (random_snr / 10))
+        std = torch.sqrt(noise_power)
+
+        # Sample & scale noise
+        noise = torch.randn_like(tensor) * std
+        noisy_tensor = tensor + noise
+        
+        return noisy_tensor
 
     def forward(self, input: torch.Tensor):
 
         # If in training mode update communication cost and add noise 
         if self.training:
-            self.total_communication += tensor_to_bytes(input)
-            input = add_awgn_noise(input, self.snr_range)
+            self.total_communication += self.quantization_compression * tensor_to_bytes(input)
+            input = self.add_awgn_noise(input)
 
         # Simple backward noise hook 
         def _grad_hook(grad):
+            if self.previous_grad.numel() == 0:
+                self.previous_grad = torch.zeros_like(grad)
+            print("snr=", self.actual_snr)
+            # Variance across the batch (dim=0), per parameter
+            real_var = grad.real.var(dim=0, unbiased=False)
+            imag_var = grad.imag.var(dim=0, unbiased=False)
 
-            if not GRADIENT_ENABLED:
-                return None
-            else:
-                grad = add_awgn_noise(grad, self.snr_range)
-                self.total_communication += tensor_to_bytes(grad)
-                return grad
+            # Average real and imaginary variance
+            per_param_var = (real_var + imag_var) / 2
+
+            # Return average across all parameters
+            print("average_variance = ",per_param_var.mean().item())
+            self.previous_grad = grad
+            
+            grad = self.add_awgn_noise(grad)
+            self.total_communication += tensor_to_bytes(grad)
+            return grad
             
         # Register hook
         if input.requires_grad:
@@ -67,7 +82,6 @@ class Encoder(nn.Module):
                  n_layers=2,
                  normalize=True,
                  drop_last_activation=True,
-
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 

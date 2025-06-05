@@ -2,7 +2,7 @@ import torch
 import hydra
 import torch.nn as nn
 from scripts.utils import train_all, resolve_compression_rate
-from scripts.modules import Store_Scores_Attention, Delta_Block, Compressor_Block
+from scripts.modules import Store_Scores_Attention, Delta_Block, Compressor_Block, QuantizationLayer, RandomTopKModifier
 import warnings
 
 # ----------- Baselines ----------------------------------------------------
@@ -14,15 +14,15 @@ def classic_training(cfg):
     model = hydra.utils.instantiate(cfg.model)
     
     # Store method name 
-    model.method = cfg.method.name 
+    model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
 
     return model 
 
 # Classic split_learning with a channel that splits the network and autoencoder to compress the things 
 def classic_split_learning(cfg):
-
-    # Check if we can train at the current compression 
-    resolve_compression_rate(cfg)
 
     # Initialize  model  
     model = hydra.utils.instantiate(cfg.model)
@@ -44,6 +44,9 @@ def classic_split_learning(cfg):
     model.channel = channel
     model.method = cfg.method.name
 
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
+
     # Set all trainable 
     train_all(model)
 
@@ -56,15 +59,19 @@ def JPEG(cfg):
     model = hydra.utils.instantiate(cfg.model)
 
     # Store method name 
-    model.method = cfg.method.name 
+    model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
+
+    # Set all trainable 
+    train_all(model)
 
     return model 
 
 # Dynamic Efficient Layer and Tokens Adaptation 
 def alast(cfg):
     
-    # Check if we can train at the current compression 
-    resolve_compression_rate(cfg)
 
     # Initialize  model  
     model = hydra.utils.instantiate(cfg.model)
@@ -119,23 +126,91 @@ def alast(cfg):
     # Set the number of training blocks
     model.K = cfg.method.parameters.K
     
-    # Channel and name attributes   
+    # Store channel 
     model.channel = channel
+
+    # Store method name 
     model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
 
     # Set all trainable 
     train_all(model)
 
     return model
 
+# Quantization 
+def quantization(cfg):
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
+
+    # Get split index 
+    split_index = cfg.hyperparameters.split_index
+    
+    # Get Encoder, Decoder, Channel and Quantizer 
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel, quantization_compression = cfg.method.parameters.n_bits / 32)
+    quantizer = QuantizationLayer(n_bits=cfg.method.parameters.n_bits)
+
+    # Add encoder, decoder, channel and quantizer to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, quantizer, channel, decoder, *blocks_after)
+
+    # Store channel  
+    model.channel = channel
+
+    # Store method name 
+    model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
+
+    # Set all trainable 
+    train_all(model)
+
+    return model   
+
+# Classic split_learning with a channel that splits the network and autoencoder to compress the things 
+def Random_Top_K(cfg):
+
+    # Initialize  model  
+    model = hydra.utils.instantiate(cfg.model)
+
+    # Get split index 
+    split_index = cfg.hyperparameters.split_index
+    
+    # Get Encoder, Decoder and Channel 
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size=model.num_features)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel)
+    random_top_k_layer  = RandomTopKModifier(cfg.method.parameters.rate)
+
+    # Add encoder, decoder  and channel to the model 
+    blocks_before = model.blocks[:split_index]
+    blocks_after = model.blocks[split_index:]
+    model.blocks = nn.Sequential(*blocks_before, encoder, random_top_k_layer, channel, decoder, *blocks_after)
+
+    # Channel and name  attributes   
+    model.channel = channel
+    model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
+
+    # Set all trainable 
+    train_all(model)
+
+    return model   
+
 # Ours static 
 def ours(cfg):
 
     # Initialize  model  
     model = hydra.utils.instantiate(cfg.model)
-
-    # # Get compression rates 
-    # batch_compression, token_compression = resolve_compression_rate(cfg)
 
     # Get split index 
     split_index = cfg.hyperparameters.split_index
@@ -158,9 +233,14 @@ def ours(cfg):
     blocks_after = model.blocks[split_index:]
     model.blocks = nn.Sequential(*blocks_before, encoder, channel, decoder, *blocks_after)
 
-    # Channel and name attributes   
+    # Store Channel
     model.channel = channel
+
+    # Store method name 
     model.method = cfg.method.name
+
+    # Store compression 
+    model.compression = resolve_compression_rate(cfg)
 
     # Set all trainable 
     train_all(model)

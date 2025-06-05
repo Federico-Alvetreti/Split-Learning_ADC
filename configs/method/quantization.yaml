@@ -1,0 +1,6 @@
+function:
+  _target_: scripts.methods.quantization
+  _recursive_: false
+name : quantization
+parameters: 
+  n_bits: 1

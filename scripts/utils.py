@@ -184,6 +184,9 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
     if hasattr(model, "channel") or model.method == "JPEG":
         results["Communication cost"] = communication_costs
 
+    if hasattr(model, "compression"):
+        results["k/n"] = model.compression
+
 
     return results
 
@@ -197,7 +200,7 @@ def filter_dataset_by_jpeg(dataset, cfg):
 
     # Compute the maximum bytes that can pass through the channel 
     snr = cfg.hyperparameters.snr
-    k_over_n = cfg.hyperparameters.k_over_n
+    k_over_n = cfg.method.parameters.k_over_n
     number_of_bits_of_full_image =  224*224*3*8 # image_size(224*224*3) * bits_per_number(8)
     max_symbols=  round(k_over_n * number_of_bits_of_full_image)   
     linear_snr =  10**(snr / 10)
@@ -332,29 +335,32 @@ def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
 
         return models
 
-
 def resolve_compression_rate(cfg):
 
-    # Compute baseline compression without any techniques
+    # Compute baseline compression without any techniques other than encoder 
     image_size = 224 * 224 * 3
     activation_size = 192 * 197
     encoder_compression = cfg.communication.encoder.output_size
     standard_compression = encoder_compression * activation_size / image_size
 
-    # Desired overall compression ratio
-    k_over_n = cfg.hyperparameters.k_over_n
-    target_rate = k_over_n / standard_compression
+    # Get method 
+    method = cfg.method.name
 
-    
-    if cfg.method.name == "ours":
-        if target_rate >= 0.2:
-            batch_compression, token_compression = (1, max(target_rate,1))
-        else: 
-            batch_compression, token_compression = ( 5 * (target_rate / 5 )**0.5, (target_rate / 5 )**0.5)
-    
-        return (batch_compression, token_compression)
+    # Handle all methods
+    if method == "classic_training":
+        final_compression = None
+    elif method == "classic_split_learning":
+        final_compression = standard_compression
+    elif method == "quantization":
+        final_compression = standard_compression * cfg.method.parameters.n_bits / 32 # Da rivedere 
+    elif method == "JPEG":
+        final_compression = cfg.method.parameters.k_over_n
+    elif method == "Random_Top_K":
+        final_compression = standard_compression  * cfg.method.parameters.rate * (1 + np.ceil(np.log2(cfg.method.parameters.rate * activation_size)) / 32) # Da rivedere 
+    elif method == "ours":
+        final_compression = standard_compression * cfg.method.parameters.batch_compression_rate * cfg.method.parameters.token_compression_rate
     else:
-        if target_rate < 1: 
-            raise(ValueError("Can't train at this compression.", UserWarning))
+        raise(ValueError("Method not recognized."))
     
+    return final_compression
 

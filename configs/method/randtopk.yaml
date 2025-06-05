@@ -1,0 +1,6 @@
+function:
+  _target_: scripts.methods.Random_Top_K
+  _recursive_: false
+name : Random_Top_K
+parameters: 
+  rate: 0.7

@@ -79,6 +79,10 @@ def main(cfg):
     with open(results_file, "w") as f:
         json.dump(results, f, indent=4)
 
+    # Save the model checkpoint
+    model_file = os.path.join(hydra_output_dir, "model.pt")
+    torch.save(comm_model.state_dict(), model_file)
+
     return
 
 # At the very bottom

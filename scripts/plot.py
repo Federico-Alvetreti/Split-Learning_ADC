@@ -756,6 +756,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa
 from matplotlib.colors import PowerNorm
+from scipy.interpolate import griddata
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 
 import numpy as np
 
@@ -851,7 +854,7 @@ def _plot_heatmaps(xs, ys, accs, comps, out_path):
 
     # Add line: batch = sqrt(token)
     x_line = np.linspace(unique_x.min(), unique_x.max(), 500)
-    y_line = np.sqrt(x_line)
+    y_line = x_line**(1/3)
     for ax in axes:
         ax.plot(x_line, y_line, 'r--', linewidth=1.5, label=r'$\mathrm{batch} = \sqrt{\mathrm{token}}$')
         ax.legend()
@@ -869,6 +872,66 @@ def main():
 
     _plot_3d(xs, ys, zs, accs, os.path.join(output_dir, "3d_scatter.png"))
     _plot_heatmaps(xs, ys, accs, zs, os.path.join(output_dir, "side_by_side_heatmaps.png"))
+    plot_3d_heatmap(xs, ys, zs, accs, os.path.join(output_dir, "surface.png"))
+
+
+
+def plot_3d_heatmap(xs, ys, zs, accuracies, output_path):
+
+    image_size = 224 * 224 * 3
+    activation_size = 192 * 197
+    encoder_compression = 0.5
+    standard_compression = encoder_compression * activation_size / image_size
+
+    # Create interpolation grid
+    t_lin = np.linspace(0.1, 1, 50)
+    b_lin = np.linspace(0.1, 1, 50)
+    t_mesh, b_mesh = np.meshgrid(t_lin, b_lin)
+    e_mesh = standard_compression * t_mesh * b_mesh
+
+    # Mask out extreme C values
+    e_mesh = np.ma.masked_where(np.abs(e_mesh) > 0.5, e_mesh)
+
+    # Interpolate accuracies   
+    interpolated_accuracies = griddata(
+        points=(xs, ys, zs),
+        values=accuracies,
+        xi=(t_mesh, b_mesh, e_mesh),  fill_value=0,
+        method='nearest')
+    
+    # Plot
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Normalize colors 
+    norm = PowerNorm(gamma=2, vmin=interpolated_accuracies.min(), vmax=interpolated_accuracies.max())
+
+    colors = plt.cm.viridis(norm(interpolated_accuracies))
+    mappable = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
+    fig.colorbar(mappable, ax=ax,shrink=0.5, aspect=10, label='Final Val Accuracy')
+
+    ax.plot_surface(
+        t_mesh, b_mesh, e_mesh,
+        facecolors=colors,
+        rstride=1,
+        cstride=1,
+        linewidth=0.1,
+        edgecolor='k',
+        antialiased=True,
+        alpha=1.0,
+        shade=False)
+    
+    # Labels and view
+    ax.set_xlabel('Token Compression', labelpad=10)
+    ax.set_ylabel('Batch Compression', labelpad=10)
+    ax.set_zlabel('Overall Compression', labelpad=10)
+
+    ax.set_title('Compression hyperparameters tuning.')
+    ax.view_init(elev=10, azim=-115)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
 
 if __name__ == "__main__":

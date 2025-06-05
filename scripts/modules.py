@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from kmeans_pytorch import kmeans
 import torch.nn.functional as F
+import numpy as np 
 
 # An attention class that stores class token attention scores
 class Store_Scores_Attention(nn.Module):
@@ -110,7 +111,7 @@ class Delta_Block(nn.Module):
 
         return x
 
-# 
+# Block used by ours to compress batches and select tokens 
 class Compressor_Block(nn.Module):
 
     def __init__(self, block, batch_compression_rate, tokens_compression_rate):
@@ -129,7 +130,6 @@ class Compressor_Block(nn.Module):
         # Get shape and set device 
         B, N, _ = x.shape
         device = x.device
-        
         
         K = max(2, int(self.batch_compression_rate * B))
         self.K = K
@@ -190,3 +190,81 @@ class Compressor_Block(nn.Module):
         final_labels = torch.stack(compressed, dim=0)
 
         return final_labels
+
+# Quantization 
+class _QuantizeFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, n_bits: int):
+        if torch.is_complex(x):
+            real_q = _QuantizeFunction.forward(ctx, x.real, n_bits)
+            imag_q = _QuantizeFunction.forward(ctx, x.imag, n_bits)
+            return torch.complex(real_q, imag_q)
+        
+        batch_size = x.shape[0]
+        x_flat = x.view(batch_size, -1)
+
+        x_min = x.min()
+        x_max = x.max()
+        levels = 2 ** n_bits
+
+        thresholds = torch.linspace(x_min, x_max, steps=levels + 1, device=x.device)
+        centers = (thresholds[:-1] + thresholds[1:]) / 2  # Midpoints
+
+        diffs = torch.abs(x_flat.unsqueeze(-1) - centers.unsqueeze(0))  # [batch, dim, levels]
+        closest_indices = torch.argmin(diffs, dim=-1)  # [batch, dim]
+
+        quantized_flat = centers[closest_indices]
+        quantized_x = quantized_flat.view_as(x)
+
+        ctx.save_for_backward(x)  # optional, for custom gradient
+
+        
+
+        return quantized_x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # By default: pass-through gradient (STE)
+        # You can customize this logic as needed
+        grad_input = grad_output.clone()
+        return grad_input, None  # None for n_bits
+
+class QuantizationLayer(nn.Module):
+
+    def __init__(self, n_bits: int):
+        super().__init__()
+        self.n_bits = n_bits
+
+    def forward(self, x: torch.Tensor):
+        if self.training:
+            return _QuantizeFunction.apply(x, self.n_bits)
+        else:
+            return x 
+        
+
+# Random top K 
+class RandomTopKModifier(nn.Module):
+    def __init__(self, rate: float, random_portion: float = 0.1):
+        super(RandomTopKModifier, self).__init__()
+        self.rate = rate
+        self.random_portion = random_portion
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size = x.shape[0]
+        x_flat = x.view(batch_size, -1)
+        k = max(1, round(self.rate * x_flat.shape[1]))
+        sample_dim = x_flat.shape[1]
+
+        if self.training:
+            _, top_k_indices = torch.topk(torch.abs(x_flat), k, sorted=False)
+
+            probs = torch.full_like(x_flat.real, self.random_portion / (sample_dim - k))
+            probs = torch.scatter(probs, 1, top_k_indices,
+                                  (1 - self.random_portion) / k)
+            selected_indices = torch.multinomial(probs, k)
+            mask = torch.scatter(torch.zeros_like(x_flat), 1, selected_indices, 1)
+
+            return mask.view(*x.shape) * x
+
+        else:
+            return x
