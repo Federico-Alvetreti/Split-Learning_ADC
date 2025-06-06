@@ -1,0 +1,6 @@
+model:
+  _target_: methods.random_top_k.model
+  rate: ${..parameters.rate}
+name : Random_Top_K
+parameters: 
+  rate: 0.06

@@ -1,15 +1,14 @@
 # Default Configurations 
 defaults:
-  - communication: standard
+  - communication: clean
   - dataset: imagenette
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : classic_split_learning
+  - method : random_top_k
   - _self_
 
 # Hyperparameters 
 hyperparameters:
-  snr_range: 10   # Sound to noise ratio -> unriform random variable in [-snr_range, snr_range]
   split_index : 3  # Where to split the network
   experiment_name : prova  # Name of the experiment
   max_communication: 6e10 # About 20 epochs of classic split-learning, when it converges.
@@ -24,7 +23,7 @@ core:
 # Set results folder name 
 hydra:
   run:
-    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/snr=${hyperparameters.snr_range}/params=${method.parameters}
+    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
 
   job:
     chdir: No

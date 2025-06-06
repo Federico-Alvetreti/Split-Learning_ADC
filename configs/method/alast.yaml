@@ -1,5 +1,5 @@
 function:
-  _target_: scripts.methods.alast
+  _target_: methods.alast.model
   _recursive_: false
 name: alast
 parameters:

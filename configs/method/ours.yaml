@@ -1,8 +1,0 @@
-function:
-  _target_: scripts.methods.ours
-  _recursive_: false
-name: ours
-parameters:
-  batch_compression_rate : 0.6
-  token_compression_rate : 0.1
-

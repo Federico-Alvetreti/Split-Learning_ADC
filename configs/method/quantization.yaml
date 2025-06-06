@@ -1,6 +1,7 @@
-function:
-  _target_: scripts.methods.quantization
-  _recursive_: false
+model:
+  _target_: methods.quantization.model
+  n_bits: ${..parameters.n_bits}
+
 name : quantization
 parameters: 
-  n_bits: 1
+  n_bits: 2

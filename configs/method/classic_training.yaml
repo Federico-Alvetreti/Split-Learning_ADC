@@ -1,5 +1,0 @@
-function:
-  _target_: scripts.methods.classic_training
-  _recursive_: false
-name : classic_training
-parameters: null

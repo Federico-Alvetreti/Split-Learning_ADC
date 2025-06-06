@@ -3,9 +3,9 @@ import os
 import hydra 
 import torch 
 import json 
+from tqdm import tqdm
 
 # Custom functions 
-from scripts.utils import training_schedule, filter_dataset_by_jpeg
 from omegaconf import OmegaConf
 
 
@@ -26,6 +26,186 @@ OmegaConf.register_new_resolver(
 OmegaConf.register_new_resolver("flatten_params", flatten_params)
 
 
+# Standard training phase 
+def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication):
+
+    if plot:
+        print("\nTraining phase: ")
+
+    # Initialize train loss and accuracy
+    train_loss = 0.0
+    train_accuracy = 0.0
+
+    # Set the model into training mode
+    model.train()
+
+    # Counter   
+    iterations = 0
+    # Forward the train set
+    for batch in tqdm(train_data_loader, disable=not plot):
+
+        # Get input and labels from batch
+        batch_input = batch[0].to(device)
+        batch_labels = batch[1].to(device)
+
+        # Get batch predictions
+        batch_predictions = model(batch_input)
+
+        
+
+        # Get batch accuracy + handle batch compression for labels  
+        if hasattr(model, "compressor_module"):
+            batch_labels = model.compressor_module.compress_labels(batch_labels, len(train_data_loader.dataset.classes))
+            batch_accuracy = 0
+        else:
+            batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
+
+        # Get batch loss
+        batch_loss = loss(batch_predictions, batch_labels)
+
+        iterations+=1
+
+        # Store them
+        train_loss += batch_loss.detach().cpu().item()
+        train_accuracy += batch_accuracy
+
+        # Compute gradients
+        batch_loss.backward()  
+
+        # Update and zero out previous gradients
+        optimizer.step()
+        optimizer.zero_grad()
+
+        # Store communication cost 
+        if hasattr(model, "channel"):
+            current_communication_cost = model.channel.total_communication
+            # If the current communication cost is above the max communication break the training 
+            if  current_communication_cost > max_communication:
+                break
+        elif model.name=="JPEG":
+            current_communication_cost = train_data_loader.dataset.total_communication
+            
+            # If the current communication cost is above the max communication break the training 
+            if  current_communication_cost > max_communication:
+                break
+
+    # Compute average loss and accuracy
+    average_train_loss = train_loss / iterations
+    average_train_accuracy = train_accuracy / iterations
+
+    return average_train_loss, average_train_accuracy
+
+# Standard validation phase
+def validation_phase(model, val_data_loader, loss, device, plot):
+  if plot: 
+    print("Validation phase: ")
+
+  # Set the model to evaluation mode
+  model.eval()
+
+  # Initialize loss and accuracy
+  val_loss = 0.0
+  val_accuracy = 0.0
+
+  # Forward val set
+  with torch.no_grad():
+    for batch in tqdm(val_data_loader, disable=not plot):
+
+      # Get input and labels from batch
+      batch_input = batch[0].to(device)
+      batch_labels = batch[1].to(device)
+
+      # Get predictions
+      batch_predictions = model(batch_input)
+
+      # Get batch loss and accuracy
+      batch_loss = loss(batch_predictions, batch_labels)
+      batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
+
+      # Update val_loss and val_accuracy
+      val_loss += batch_loss.cpu().item()
+      val_accuracy += batch_accuracy
+
+  # Compute average loss and accuracy
+  average_val_loss = val_loss / len(val_data_loader)
+  average_val_accuracy = val_accuracy / len(val_data_loader)
+
+  return average_val_loss, average_val_accuracy
+
+# Standard training / validation cicle
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, loss=torch.nn.CrossEntropyLoss(),  plot=True, patience=10):
+
+
+    train_losses, train_accuracies = [], []
+    val_losses, val_accuracies = [], []
+    if hasattr(model, "channel") or model.name == "JPEG":
+        communication_costs = []
+
+    # Convergence check 
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
+
+    for epoch in range(1, 20):
+        torch.cuda.empty_cache()
+        if plot:
+            print(f"\n\nEPOCH {epoch}")
+
+        # Training and validation phases 
+        avg_train_loss, avg_train_accuracy = training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication)
+        avg_val_loss, avg_val_accuracy = validation_phase(model, val_data_loader, loss, device, plot)
+
+        # Store results 
+        train_losses.append(avg_train_loss)
+        train_accuracies.append(avg_train_accuracy)
+        val_losses.append(avg_val_loss)
+        val_accuracies.append(avg_val_accuracy)
+
+        if plot:
+            print(f"\nTrain loss: {avg_train_loss:.4f}; Val loss: {avg_val_loss:.4f}")
+            print(f"Train accuracy: {avg_train_accuracy:.2f}; Val accuracy: {avg_val_accuracy:.2f}")
+
+        # Store communication cost 
+        if hasattr(model, "channel"):
+            communication_costs.append(model.channel.total_communication)
+            # If the communication cost exceeds the max communication stop. 
+            if communication_costs[-1] > max_communication:
+                break
+        # Handle the cases of JPEG and Normal training, where they need just an epoch to train 
+        elif model.name=="JPEG":
+            communication_costs.append(train_data_loader.dataset.total_communication)
+            break
+        else:
+            break
+
+
+        # Convergence check: early stopping if val loss doesn't improve in tot epochs 
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                if plot:
+                    print(f"⏹️ Early stopping: no improvement in val loss for {patience} epochs.")
+                break
+
+
+    # Collect results
+    results = {
+        "Train losses": train_losses,
+        "Train accuracies": train_accuracies,
+        "Val losses": val_losses,
+        "Val accuracies": val_accuracies,
+    }
+    if hasattr(model, "channel") or model.name == "JPEG":
+        results["Communication cost"] = communication_costs
+
+    if hasattr(model, "compression"):
+        results["k/n"] = model.compression
+
+
+    return results
+
 # Hydra configuration 
 @hydra.main(config_path="configs",
             version_base='1.2',
@@ -34,7 +214,7 @@ OmegaConf.register_new_resolver("flatten_params", flatten_params)
 def main(cfg):
     
     # Print model, dataset and method
-    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} with an SNR of {cfg.hyperparameters.snr_range} using {cfg.method.name}. \n")
+    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} with an {cfg.communication.name} communication using {cfg.method.name}. \n")
     
     # Set seed for reproducibility 
     torch.manual_seed(42) 
@@ -60,14 +240,29 @@ def main(cfg):
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size, num_workers = 16)
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size, num_workers = 16)
 
+
     # Get model 
-    comm_model = hydra.utils.call(cfg.method.function, cfg = cfg).to(device)
+    model = hydra.utils.instantiate(cfg.model)
+
+    # Get encoder, channel and decoder
+    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size = model.num_features)
+    channel = hydra.utils.instantiate(cfg.communication.channel)
+    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     
+
+    # Apply method to the model 
+    model = hydra.utils.instantiate(cfg.method.model,
+                                    encoder = encoder,
+                                    channel = channel,
+                                    decoder = decoder,
+                                    split_index = cfg.hyperparameters.split_index,
+                                    model=model).to(device)
+
     # Get optimizer 
-    optimizer = hydra.utils.instantiate(cfg.optimizer, params=comm_model.parameters())
+    optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
     # Train 
-    results = training_schedule(comm_model, train_dataloader, val_dataloader, optimizer, max_communication, device)
+    results = training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device)
 
     # Get the current Hydra output directory
     hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
@@ -81,7 +276,7 @@ def main(cfg):
 
     # Save the model checkpoint
     model_file = os.path.join(hydra_output_dir, "model.pt")
-    torch.save(comm_model.state_dict(), model_file)
+    torch.save(model.state_dict(), model_file)
 
     return
 

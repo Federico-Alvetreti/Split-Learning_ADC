@@ -1,4 +1,4 @@
-function:
+model:
   _target_: scripts.methods.JPEG
   _recursive_: false
 name : JPEG
