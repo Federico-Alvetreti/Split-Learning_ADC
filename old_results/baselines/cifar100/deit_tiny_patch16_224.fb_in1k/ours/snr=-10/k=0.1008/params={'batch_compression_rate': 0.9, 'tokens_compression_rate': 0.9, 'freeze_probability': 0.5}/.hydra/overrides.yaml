@@ -1,0 +1,6 @@
+- method=ours
+- communication.encoder.output_size=0.5
+- hyperparameters.snr=-10
+- method.parameters.batch_compression_rate=0.9
+- method.parameters.tokens_compression_rate=0.9
+- method.parameters.freeze_probability=0.5

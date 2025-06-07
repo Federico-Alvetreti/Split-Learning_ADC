@@ -1,0 +1,7 @@
+- method=ours
+- hyperparameters.k_over_n=0.001
+- hyperparameters.snr=-10
+- hyperparameters.max_communication=2e8
+- method.parameters.batch_compression=0.5911932853498543
+- method.parameters.token_compression=0.024431100676271723
+- method.parameters.encoder_compression=0.2755353407985151

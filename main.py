@@ -76,18 +76,10 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_
         optimizer.step()
         optimizer.zero_grad()
 
-        # Store communication cost 
-        if hasattr(model, "channel"):
-            current_communication_cost = model.channel.total_communication
-            # If the current communication cost is above the max communication break the training 
-            if  current_communication_cost > max_communication:
-                break
-        elif model.name=="JPEG":
-            current_communication_cost = train_data_loader.dataset.total_communication
-            
-            # If the current communication cost is above the max communication break the training 
-            if  current_communication_cost > max_communication:
-                break
+        # Check communication
+        if model.communication > max_communication: 
+            break
+
 
     # Compute average loss and accuracy
     average_train_loss = train_loss / iterations
@@ -135,17 +127,14 @@ def validation_phase(model, val_data_loader, loss, device, plot):
 # Standard training / validation cicle
 def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, loss=torch.nn.CrossEntropyLoss(),  plot=True, patience=10):
 
-
-    train_losses, train_accuracies = [], []
-    val_losses, val_accuracies = [], []
-    if hasattr(model, "channel") or model.name == "JPEG":
-        communication_costs = []
+    # Lists to store results 
+    train_losses, train_accuracies, val_losses, val_accuracies, communication_cost = [], [], [], [], []
 
     # Convergence check 
     best_val_loss = float('inf')
-    epochs_no_improve = 0
+    epochs_without_improvement = 0
 
-    for epoch in range(1, 20):
+    for epoch in range(1, 100):
         torch.cuda.empty_cache()
         if plot:
             print(f"\n\nEPOCH {epoch}")
@@ -159,32 +148,25 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         train_accuracies.append(avg_train_accuracy)
         val_losses.append(avg_val_loss)
         val_accuracies.append(avg_val_accuracy)
+        communication_cost.append(model.communication)
 
+        # Plot main results 
         if plot:
             print(f"\nTrain loss: {avg_train_loss:.4f}; Val loss: {avg_val_loss:.4f}")
             print(f"Train accuracy: {avg_train_accuracy:.2f}; Val accuracy: {avg_val_accuracy:.2f}")
 
-        # Store communication cost 
-        if hasattr(model, "channel"):
-            communication_costs.append(model.channel.total_communication)
-            # If the communication cost exceeds the max communication stop. 
-            if communication_costs[-1] > max_communication:
-                break
-        # Handle the cases of JPEG and Normal training, where they need just an epoch to train 
-        elif model.name=="JPEG":
-            communication_costs.append(train_data_loader.dataset.total_communication)
-            break
-        else:
-            break
 
+        # Check communication 
+        if model.communication > max_communication:
+            break 
 
-        # Convergence check: early stopping if val loss doesn't improve in tot epochs 
+        # Early stopping mechanism 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            epochs_no_improve = 0
+            epochs_without_improvement = 0
         else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= patience:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= patience:
                 if plot:
                     print(f"⏹️ Early stopping: no improvement in val loss for {patience} epochs.")
                 break
@@ -196,15 +178,12 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         "Train accuracies": train_accuracies,
         "Val losses": val_losses,
         "Val accuracies": val_accuracies,
+        "Communication cost" : communication_cost,
+        "Compression" : model.compression
     }
-    if hasattr(model, "channel") or model.name == "JPEG":
-        results["Communication cost"] = communication_costs
-
-    if hasattr(model, "compression"):
-        results["k/n"] = model.compression
-
 
     return results
+
 
 # Hydra configuration 
 @hydra.main(config_path="configs",
@@ -212,9 +191,6 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             config_name="default")
 
 def main(cfg):
-    
-    # Print model, dataset and method
-    print(f"\n\nTraining {cfg.model.model_name} on {cfg.dataset.name} with an {cfg.communication.name} communication using {cfg.method.name}. \n")
     
     # Set seed for reproducibility 
     torch.manual_seed(42) 
@@ -230,16 +206,9 @@ def main(cfg):
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
     val_dataset = hydra.utils.instantiate(cfg.dataset.test)
 
-    # Compress the train dataset when using JPEG method 
-    if cfg.method.name == "JPEG":
-        train_dataset = filter_dataset_by_jpeg(train_dataset, cfg)
-        if train_dataset == 0:
-            return 
-
     # Get dataloaders
     train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size, num_workers = 16)
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size, num_workers = 16)
-
 
     # Get model 
     model = hydra.utils.instantiate(cfg.model)
@@ -249,7 +218,6 @@ def main(cfg):
     channel = hydra.utils.instantiate(cfg.communication.channel)
     decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     
-
     # Apply method to the model 
     model = hydra.utils.instantiate(cfg.method.model,
                                     encoder = encoder,
@@ -260,6 +228,10 @@ def main(cfg):
 
     # Get optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
+
+
+    # Print model, dataset and method
+    print(f"\n\nTraining: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression} \n")
 
     # Train 
     results = training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device)

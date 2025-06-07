@@ -1,17 +1,17 @@
 # Default Configurations 
 defaults:
   - communication: clean
-  - dataset: imagenette
+  - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : random_top_k
+  - method : proposal
   - _self_
 
 # Hyperparameters 
 hyperparameters:
   split_index : 3  # Where to split the network
-  experiment_name : prova  # Name of the experiment
-  max_communication: 6e10 # About 20 epochs of classic split-learning, when it converges.
+  experiment_name : proposal_parameter_tuning  # Name of the experiment
+  max_communication: 3000 # About 10 epochs of base on food_101
 
 
 # Set folders for results, datasets and plots 

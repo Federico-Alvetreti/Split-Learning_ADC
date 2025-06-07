@@ -1,0 +1,3 @@
+- method=classic_split_learning
+- hyperparameters.k_over_n=0.0001
+- hyperparameters.snr=0

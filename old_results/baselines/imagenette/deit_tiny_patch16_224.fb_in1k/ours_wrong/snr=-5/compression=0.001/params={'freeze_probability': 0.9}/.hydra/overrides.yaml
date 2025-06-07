@@ -1,0 +1,3 @@
+- method=ours
+- hyperparameters.k_over_n=0.001
+- hyperparameters.snr=-5

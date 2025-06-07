@@ -1,0 +1,3 @@
+- hyperparameters.k_over_n=0.08796818903061224
+- method.parameters.token_compression_rate=0.925000
+- method.parameters.batch_compression_rate=0.756944

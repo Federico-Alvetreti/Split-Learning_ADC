@@ -1,87 +1,115 @@
 
 from timm.models import VisionTransformer
 import torch.nn as nn
-import torch 
+import torch
+from kmeans_pytorch import kmeans
+import torch.nn.functional as F
 
-# Block used by ours to compress batches and select tokens 
+# Block used by our proposal to compress batches and select tokens 
 class Compress_Batches_and_Select_Tokens_Block_Wrapper(nn.Module):
 
-    def __init__(self, block, batch_compression_rate, tokens_compression_rate):
+    def __init__(self, block, n_new_batches, n_new_tokens):
         super().__init__()
 
         self.block = block
-        self.cluster_ids = None
-        self.K = None 
 
-        self.batch_compression_rate = batch_compression_rate  
-        self.tokens_compression_rate = tokens_compression_rate
-        self.forward_happened = False  
+        # Store the clusters for label reconstruction
+        self.cluster_ids = None
+
+        # Store compression rates 
+        self.n_new_batches = n_new_batches  
+        self.n_new_tokens = n_new_tokens
+
 
     def merge_batches_and_select_tokens(self, x: torch.Tensor) -> torch.Tensor:
 
-        # Get shape and set device 
-        B, N, _ = x.shape
+        # Store device
         device = x.device
-        
-        K = max(2, int(self.batch_compression_rate * B))
-        self.K = K
-        num_tokens_to_keep = max(1, int(self.tokens_compression_rate * (N-1)))
 
-        # Use class token attention to cluster activations 
-        class_token_attention = self.block.attn.class_token_attention
+        # Get the class token attention of the batch 
+        class_token_attention = self.block.attn.class_token_attention # n_batches x hidden_dim
 
-        with torch.no_grad():
-            cluster_ids, centroids =  kmeans(X=class_token_attention,       # (B, D)
-                                            num_clusters=K,                # as before
-                                            distance='euclidean',          # as before
-                                            tol=1e-4,                      # convergence threshold
-                                            iter_limit=10,                 # ← stop after at most 10 iters
+        # Do K means clustering 
+        with torch.no_grad(): 
+            cluster_ids, centroids =  kmeans(X=class_token_attention,
+                                            num_clusters=self.n_new_batches,             
+                                            distance='euclidean',        
+                                            tol=1e-4,                    
+                                            iter_limit=10,          
                                             device=device,
-                                            tqdm_flag=False                # turn off the printouts
+                                            tqdm_flag=False              
                                             )
 
-        # Make sure these are plain tensors (no grad)
+        # Make sure these are plain tensors
         self.cluster_ids = cluster_ids.detach().to(device)
         centroids = centroids.detach().to(device)
 
-        merged_inputs = []
+        # Create variable to store output
+        clustered_activations = []
 
-        for k in range(K):
+        # For each cluster 
+        for cluster_id in range(self.n_new_batches):
+            
+            # Get the activations that belong to that cluster 
+            mask = cluster_ids == cluster_id
+            cluster_activations = x[mask]         
 
-            mask = cluster_ids == k
-            grp_x = x[mask]         # (n_members, N, D)
-
-            token_avg = grp_x.mean(dim=0)  # (N, D)
+            # Get the average activation 
+            average_activation = cluster_activations.mean(dim=0)
 
             # Get the attention centroid that represents the cluster 
-            attn_cent = centroids[k, 1:]
+            cluster_class_token_attention = centroids[cluster_id, 1:]
 
             # Select the top k tokens and keep them 
-            topk = torch.topk(attn_cent, k=num_tokens_to_keep, largest=True, sorted=False).indices
-            keep_idxs = torch.cat([torch.zeros(1, dtype=torch.long, device=device), topk + 1])
-            merged_inputs.append(token_avg[keep_idxs, :])
+            top_k_tokens = torch.topk(cluster_class_token_attention, k = self.n_new_tokens - 1 , largest = True, sorted = False).indices
+            top_k_tokens_indexes = torch.cat([torch.zeros(1, dtype=torch.long, device=device), top_k_tokens + 1])
+
+            # Create the new activation 
+            clustered_activations.append(average_activation[top_k_tokens_indexes, :])
 
 
-        merged_inputs = torch.stack(merged_inputs, dim=0)  # (K, num_keep+1, D)
-        return merged_inputs
+        # Stack on the batch dimension to get the output 
+        output = torch.stack(clustered_activations, dim=0)  
+
+        return output
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        # Normal block forward 
         x = x + self.block.drop_path1(self.block.ls1(self.block.attn(self.block.norm1(x))))
         x = x + self.block.drop_path2(self.block.ls2(self.block.mlp(self.block.norm2(x))))
+
+        # When training merge batches and select tokens 
         if self.training:
             x = self.merge_batches_and_select_tokens(x)
+
         return x
 
+    # Function to handle the merging of lables (since we merge batches)
     def compress_labels(self, labels, num_classes) -> torch.Tensor:
-        compressed = []
-        for k in range(self.K):
-            one_hot_labels = F.one_hot(labels, num_classes=num_classes).float()
-            mask = self.cluster_ids == k  # Reuse this from forward logic
-            grp_lbl = one_hot_labels[mask].mean(dim=0)  # (N, L)
-            compressed.append(grp_lbl) 
-        final_labels = torch.stack(compressed, dim=0)
 
-        return final_labels
+        # Get number of clusters
+        clusters_ids = self.n_new_batches 
+        new_labels = []
+
+        # For each cluster 
+        for clusters_id in range(clusters_ids):
+            
+            # Transform to one hot labels, n_batches x num_classes
+            one_hot_labels = F.one_hot(labels, num_classes=num_classes).float()
+
+            # Get the labels that belong to the cluster
+            mask = self.cluster_ids == clusters_id
+            cluster_labels = one_hot_labels[mask]
+
+            # Average them and append 
+            cluster_average_label = cluster_labels.mean(dim=0)
+            new_labels.append(cluster_average_label) 
+
+        # Stack on the batch dimension 
+        new_labels = torch.stack(new_labels, dim=0)
+
+        return new_labels
 
 # An attention class that stores class token attention scores
 class Store_Class_Token_Attn_Wrapper(nn.Module):
@@ -91,6 +119,8 @@ class Store_Class_Token_Attn_Wrapper(nn.Module):
         self.class_token_attention = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        # Normal attention behaviour 
         B, N, C = x.shape
         qkv = self.attn.qkv(x).reshape(B, N, 3, self.attn.num_heads, self.attn.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
@@ -98,7 +128,11 @@ class Store_Class_Token_Attn_Wrapper(nn.Module):
         q = q * self.attn.scale
         attn = q @ k.transpose(-2, -1)
         attn = attn.softmax(dim=-1)
-        self.class_token_attention = attn[:, :, 0, :].mean(dim=1).detach()  # Save attention over class token
+
+        # Store class_token attention 
+        self.class_token_attention = attn[:, :, 0, :].mean(dim=1).detach()
+
+        # Normal attention behaviour 
         attn = self.attn.attn_drop(attn)
         attn_output = attn @ v
         x = attn_output.transpose(1, 2).reshape(B, N, C)
@@ -116,18 +150,28 @@ class model(nn.Module):
                  split_index,
                  batch_compression, 
                  token_compression,
+                 batch_size,
                  *args, **kwargs):
         
         super().__init__(*args, **kwargs)
+
+        self.compressor_module = None
+
+
+        # Store compression (is updated in build_model)
+        self.compression = 0
         
         # Build model 
-        self.model = self.build_model(model, encoder, channel, decoder, split_index, batch_compression, token_compression)
+        self.model = self.build_model(model, encoder, channel, decoder, split_index, batch_compression, token_compression, batch_size)
 
-        # Store compression 
-        self.compression = batch_compression * token_compression
-
-        self.name = "Proposal"
+        # Store channel 
         self.channel = channel
+
+        # Variable to store communication 
+        self.communication = 0 
+
+        # Store name 
+        self.name = "Proposal"
     
     # Function to build model 
     def build_model(self, 
@@ -137,15 +181,30 @@ class model(nn.Module):
                     decoder,
                     split_index,
                     batch_compression, 
-                    token_compression):
+                    token_compression,
+                    batch_size):
+
+
+        # Get original n_tokens 
+        img_size = model.default_cfg['input_size'][-1]
+        patch_size = model.patch_embed.patch_size[0]  # Usually a tuple
+        n_tokens = (img_size // patch_size) ** 2 + 1
+
+        # Compute the new number of token and batches 
+        n_new_tokens = max(1, int(token_compression * n_tokens))
+        n_new_batches = max(2, int(batch_compression * batch_size))
+
+        # Store the compression 
+        self.compression = (n_new_tokens / n_tokens) * (n_new_batches / batch_size)
+
+        # Wrap last block with our compression method 
+        model.blocks[split_index -1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index -1].attn)
+        model.blocks[split_index -1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index -1], n_new_batches, n_new_tokens)
+        self.compressor_module = model.blocks[split_index -1]
 
         # Split the original model 
         blocks_before = model.blocks[:split_index]
         blocks_after = model.blocks[split_index:]
-
-        # Wrap last block with our compression method 
-        model.blocks[split_index -1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index -1].attn)
-        model.blocks[split_index -1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index -1], batch_compression, token_compression)
 
         # Add comm pipeline and compression modules 
         model.blocks = nn.Sequential(*blocks_before, encoder, channel, decoder, *blocks_after)
@@ -154,4 +213,6 @@ class model(nn.Module):
 
     # Forward 
     def forward(self, x):
+        if self.training: 
+            self.communication += self.compression
         return self.model.forward(x)

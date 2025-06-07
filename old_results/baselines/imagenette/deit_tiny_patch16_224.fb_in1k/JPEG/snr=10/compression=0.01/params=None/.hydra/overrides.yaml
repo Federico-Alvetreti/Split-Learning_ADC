@@ -1,0 +1,3 @@
+- method=JPEG
+- hyperparameters.k_over_n=0.01
+- hyperparameters.snr=10

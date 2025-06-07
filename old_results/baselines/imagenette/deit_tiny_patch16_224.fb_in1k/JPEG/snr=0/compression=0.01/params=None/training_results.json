@@ -1,0 +1,17 @@
+{
+    "Train losses": [
+        1.7484793961048126
+    ],
+    "Train accuracies": [
+        0.48541389627659576
+    ],
+    "Val losses": [
+        2.6104366010235203
+    ],
+    "Val accuracies": [
+        0.1169295540796964
+    ],
+    "Communication cost": [
+        643979
+    ]
+}

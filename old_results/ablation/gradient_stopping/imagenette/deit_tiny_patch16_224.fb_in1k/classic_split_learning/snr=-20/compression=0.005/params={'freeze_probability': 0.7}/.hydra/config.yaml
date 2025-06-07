@@ -1,0 +1,102 @@
+communication:
+  channel:
+    _target_: scripts.communication.Gaussian_Noise_Analogic_Channel
+    snr: ${hyperparameters.snr}
+  encoder:
+    _target_: scripts.communication.Encoder
+    n_layers: 2
+    normalize: true
+    drop_last_activation: true
+  decoder:
+    _target_: scripts.communication.Decoder
+    n_layers: 2
+    normalize: true
+    drop_last_activation: false
+dataset:
+  train:
+    _target_: torchvision.datasets.Imagenette
+    split: train
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.RandAugment
+        num_ops: 2
+        magnitude: 9
+      - _target_: torchvision.transforms.ColorJitter
+        brightness: 0.4
+        contrast: 0.4
+        saturation: 0.4
+        hue: 0
+      - _target_: torchvision.transforms.Resize
+        size:
+        - 224
+        - 224
+      - _target_: torchvision.transforms.RandomHorizontalFlip
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Normalize
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+    root: data/imagenette
+    download: false
+    size: full
+  test:
+    _target_: torchvision.datasets.Imagenette
+    split: val
+    transform:
+      _target_: torchvision.transforms.Compose
+      _recursive_: true
+      transforms:
+      - _target_: torchvision.transforms.Resize
+        size:
+        - 224
+        - 224
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Normalize
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+    root: data/imagenette
+    download: false
+    size: full
+  name: imagenette
+  num_classes: 10
+  batch_size: 128
+model:
+  _target_: timm.create_model
+  model_name: deit_tiny_patch16_224.fb_in1k
+  pretrained: true
+  num_classes: ${dataset.num_classes}
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0001
+  eps: 1.0e-08
+  weight_decay: 0
+method:
+  function:
+    _target_: scripts.methods.classic_split_learning
+    _recursive_: false
+  name: classic_split_learning
+  parameters:
+    freeze_probability: 0.7
+hyperparameters:
+  snr: -20
+  k_over_n: 0.005
+  split_index: 3
+  experiment_name: ablation/gradient_stopping
+  max_communication: 1000000000.0
+core:
+  dataset_path: ./data
+  results_path: ./results
+  plots_path: ./plots

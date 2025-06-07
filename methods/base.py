@@ -19,8 +19,14 @@ class model(nn.Module):
 
         # Store compression 
         self.compression = 1
+
+        # Store channel 
         self.channel = channel
 
+        # Variable to store communication 
+        self.communication = 0 
+
+        # Store name 
         self.name = "Base"
 
     
@@ -38,4 +44,6 @@ class model(nn.Module):
 
     # Forward 
     def forward(self, x):
+        if self.training: 
+            self.communication += self.compression
         return self.model.forward(x)

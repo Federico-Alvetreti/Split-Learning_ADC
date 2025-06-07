@@ -4,12 +4,8 @@ import math
 from typing import Sequence
 from io import BytesIO
 from copy import deepcopy
-import numpy as np 
-# Measure the bytes of a tensor, used to measure the communication of methods 
-def tensor_to_bytes(x: torch.Tensor) -> int:
-    buf = BytesIO()
-    torch.save(x, buf)
-    return buf.tell()
+import numpy as np
+
 
 # Creates n copies of a simple ffn  
 def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
@@ -43,13 +39,9 @@ def get_ffn(input_size, output_size, n_layers, n_copy, drop_last_activation):
 # Classic analogic channel with gaussian noise 
 class Gaussian_Noise_Analogic_Channel(nn.Module):
     def __init__(self,
-                  snr_range:float,
-                  quantization_compression: float = 1.0):
+                  snr_range:float):
         super().__init__()
-
         self.snr_range = snr_range
-        self.quantization_compression = quantization_compression
-        self.total_communication = 0
         self.dims = -1
 
 
@@ -76,15 +68,13 @@ class Gaussian_Noise_Analogic_Channel(nn.Module):
 
     def forward(self, input: torch.Tensor):
 
-        # If in training mode update communication cost and add noise 
+        # If in training mode add noise 
         if self.training:
-            self.total_communication += self.quantization_compression * tensor_to_bytes(input)
             input = self.add_awgn_noise(input)
 
         # Simple backward noise hook 
         def _grad_hook(grad):
             grad = self.add_awgn_noise(grad)
-            self.total_communication += tensor_to_bytes(grad)
             return grad
             
         # Register hook
@@ -174,24 +164,13 @@ class Decoder(nn.Module):
 class Identity(nn.Module):
 
     def __init__(self,
-                 is_channel = False,
-                 input_size = None, 
-                 output_size = None,
+                 input_size = 0,
+                 output_size = 0,
                  *args, **kwargs):
-
         super().__init__(*args, **kwargs)
-
-
-        self.is_channel = is_channel
-        self.total_communication = 0
-        self.input_size = 0
-        self.output_size = 0
+        self.input_size = input_size
+        self.output_size = output_size
 
     def forward(self, input: torch.Tensor):
-        
-        # If in training mode and is channel update communication cost 
-        if self.training and self.is_channel:
-            self.total_communication +=  tensor_to_bytes(input)
-
         return input
 

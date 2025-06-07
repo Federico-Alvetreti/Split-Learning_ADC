@@ -1,0 +1,5 @@
+- method=classic_split_learning
+- hyperparameters.k_over_n=0.005
+- hyperparameters.snr=-10
+- hyperparameters.max_communication=1e9
+- method.parameters.freeze_probability=0.94

@@ -14,7 +14,7 @@ class _QuantizeFunction(torch.autograd.Function):
             imag_q = _QuantizeFunction.forward(ctx, x.imag, n_bits)
             return torch.complex(real_q, imag_q)
         
-    
+        # Quantization forward from https://github.com/zfscgy/SplitLearning
         batch_size = x.shape[0]
         x_flat = x.view(batch_size, -1)
 
@@ -43,7 +43,6 @@ class _QuantizeFunction(torch.autograd.Function):
         grad_input = grad_output.clone()
         return grad_input, None  # None for n_bits
 
-
 class Quantization_Layer(nn.Module):
 
     def __init__(self, n_bits: int):
@@ -56,7 +55,6 @@ class Quantization_Layer(nn.Module):
         else:
             return x 
         
-
 class model(nn.Module):
 
     def __init__(self, 
@@ -73,11 +71,17 @@ class model(nn.Module):
         # Build model 
         self.model = self.build_model(model, encoder, channel, decoder, split_index, n_bits)
 
-        # Store compression 
-        self.compression = n_bits / 32
+        # Store compression
+        self.compression = self.get_compression(n_bits)
 
-        self.name = "Quantization"
+        # Store channel 
         self.channel = channel
+
+        # Variable to store communication 
+        self.communication = 0 
+
+        # Store name 
+        self.name = "Quantization"
 
     # Function to build model 
     def build_model(self,
@@ -97,7 +101,22 @@ class model(nn.Module):
         model.blocks = nn.Sequential(*blocks_before, encoder, Quantization_Layer(n_bits), channel, decoder, *blocks_after)
 
         return model 
+    
+
+    # Function to get the compression level of this method 
+    def get_compression(self, n_bits):
+        
+        # Compute forward and backward compression   (following https://arxiv.org/pdf/2305.18469)
+        forward_compression = n_bits / 32
+        backward_compression =  1
+
+        # Return average compression
+        compression = (forward_compression + backward_compression) / 2
+
+        return compression 
 
     # Forward 
     def forward(self, x):
+        if self.training: 
+            self.communication += self.compression
         return self.model.forward(x)

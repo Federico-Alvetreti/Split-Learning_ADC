@@ -41,6 +41,7 @@ class model(nn.Module):
                  decoder,
                  split_index,
                  rate,
+                 batch_size,
                  *args, **kwargs):
         
         super().__init__(*args, **kwargs)
@@ -49,10 +50,17 @@ class model(nn.Module):
         self.model = self.build_model(model, encoder, channel, decoder, split_index, rate)
 
         # Store compression
-        self.compression = self.get_compression_level(model, rate)
+        self.compression = self.get_compression_level(model, rate, batch_size)
 
-        self.name = "Random_Top_K"
+        # Store channel 
         self.channel = channel
+
+        # Variable to store communication 
+        self.communication = 0 
+
+        # Store name 
+        self.name = "Random_Top_K"
+
 
     # Function to build model 
     def build_model(self, 
@@ -74,19 +82,31 @@ class model(nn.Module):
         return model 
 
     # Function to get the compression level of this method 
-    def get_compression_level(self, model, rate):
-        
-        # Get activations size 
-        token_length = model.embed_dim
-        n_tokens = 197
-        activations_size = n_tokens * token_length
+    def get_compression_level(self, model, rate, batch_size):
 
-        # Compute compression  
-        compression = rate * (1 + np.ceil(np.log2(activations_size)) / 32)
+        # Get the number of elements of each batch  
+        img_size = model.default_cfg['input_size'][-1]
+        patch_size = model.patch_embed.patch_size[0] 
+        n_tokens = (img_size // patch_size) ** 2 + 1 
+        token_length = model.embed_dim
+        activations_size = n_tokens * token_length
+        batch_elements = activations_size * batch_size
+
+        # Get the number of elements after the top-k 
+        number_of_new_elements = max(1, round(self.rate * batch_elements))
+    
+        # Compute forward and backward compression   (following https://arxiv.org/pdf/2305.18469)
+        forward_compression = number_of_new_elements * (1 + np.ceil(np.log2(batch_elements)) / 32)
+        backward_compression = number_of_new_elements
+
+        # Return average compression
+        compression = (forward_compression + backward_compression) / 2 
 
         return compression 
 
         
     # Forward 
     def forward(self, x):
+        if self.training: 
+            self.communication += self.compression
         return self.model.forward(x)
