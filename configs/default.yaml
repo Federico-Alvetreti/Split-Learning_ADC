@@ -4,13 +4,13 @@ defaults:
   - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : proposal
+  - method : fedlite
   - _self_
 
 # Hyperparameters 
 hyperparameters:
   split_index : 3  # Where to split the network
-  experiment_name : proposal_parameter_tuning  # Name of the experiment
+  experiment_name : baselines  # Name of the experiment
   max_communication: 3000 # About 10 epochs of base on food_101
 
 

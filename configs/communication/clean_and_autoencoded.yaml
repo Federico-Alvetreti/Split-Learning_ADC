@@ -1,6 +1,5 @@
 channel:
   _target_: comm.communication.Identity
-  is_channel: true
 
 encoder:
   _target_: comm.communication.Encoder

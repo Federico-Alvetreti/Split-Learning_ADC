@@ -5,43 +5,44 @@ import torch
 
 # Simple Uniform Quantization  
 class _QuantizeFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: torch.Tensor, n_bits: int):
 
-        # Handle the case of complex tensor (when the encoder is applied)
+
+    @staticmethod
+    def quantize(x: torch.tensor, n_bits: int):
+
+        # Handle the case of complex tensor applying the quantization to both real and imaginary parts
         if torch.is_complex(x):
-            real_q = _QuantizeFunction.forward(ctx, x.real, n_bits)
-            imag_q = _QuantizeFunction.forward(ctx, x.imag, n_bits)
+            real_q = _QuantizeFunction.quantize(x.real, n_bits)
+            imag_q = _QuantizeFunction.quantize(x.imag, n_bits)
             return torch.complex(real_q, imag_q)
         
-        # Quantization forward from https://github.com/zfscgy/SplitLearning
-        batch_size = x.shape[0]
-        x_flat = x.view(batch_size, -1)
-
+        # Get min and max
         x_min = x.min()
         x_max = x.max()
+
+        # Get levels 
         levels = 2 ** n_bits
 
-        thresholds = torch.linspace(x_min, x_max, steps=levels + 1, device=x.device)
-        centers = (thresholds[:-1] + thresholds[1:]) / 2  # Midpoints
+        # Get the step 
+        scale = (x_max - x_min) / (levels - 1)
 
-        diffs = torch.abs(x_flat.unsqueeze(-1) - centers.unsqueeze(0))  # [batch, dim, levels]
-        closest_indices = torch.argmin(diffs, dim=-1)  # [batch, dim]
+        # Quantize: map x to integers [0, levels-1]
+        q_x = torch.round((x - x_min) / scale).clamp(0, levels - 1)
 
-        quantized_flat = centers[closest_indices]
-        quantized_x = quantized_flat.view_as(x)
-
-        ctx.save_for_backward(x)  # optional, for custom gradient
-
-        
+        # Dequantize: map back to float domain
+        quantized_x = q_x * scale + x_min
 
         return quantized_x
-
-    # Return unchanged gradient 
+    
     @staticmethod
-    def backward(ctx, grad_output):
-        grad_input = grad_output.clone()
-        return grad_input, None  # None for n_bits
+    def forward(ctx, x: torch.Tensor, n_bits: int):
+        ctx.quantize_n_bits = n_bits
+        return _QuantizeFunction.quantize(x, n_bits)
+
+    @staticmethod
+    def backward(ctx, grad_outputs: torch.Tensor):
+        return _QuantizeFunction.quantize(grad_outputs, ctx.quantize_n_bits), None
+    
 
 class Quantization_Layer(nn.Module):
 
@@ -50,6 +51,7 @@ class Quantization_Layer(nn.Module):
         self.n_bits = n_bits
 
     def forward(self, x: torch.Tensor):
+        
         if self.training:
             return _QuantizeFunction.apply(x, self.n_bits)
         else:
@@ -72,7 +74,7 @@ class model(nn.Module):
         self.model = self.build_model(model, encoder, channel, decoder, split_index, n_bits)
 
         # Store compression
-        self.compression = self.get_compression(n_bits)
+        self.compression = n_bits / 32
 
         # Store channel 
         self.channel = channel
@@ -102,19 +104,6 @@ class model(nn.Module):
 
         return model 
     
-
-    # Function to get the compression level of this method 
-    def get_compression(self, n_bits):
-        
-        # Compute forward and backward compression   (following https://arxiv.org/pdf/2305.18469)
-        forward_compression = n_bits / 32
-        backward_compression =  1
-
-        # Return average compression
-        compression = (forward_compression + backward_compression) / 2
-
-        return compression 
-
     # Forward 
     def forward(self, x):
         if self.training: 

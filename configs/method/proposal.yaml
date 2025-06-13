@@ -1,11 +1,7 @@
 model:
   _target_: methods.proposal.model
-  batch_compression: ${..parameters.batch_compression}
-  token_compression: ${..parameters.token_compression}
-  batch_size: ${dataset.batch_size}
-
+  compression: ${..parameters.compression}
 name: proposal
 parameters:
-  batch_compression : 0.6
-  token_compression : 1
+  compression: 0.001
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 # Block used by our proposal to compress batches and select tokens 
 class Compress_Batches_and_Select_Tokens_Block_Wrapper(nn.Module):
 
-    def __init__(self, block, n_new_batches, n_new_tokens):
+    def __init__(self, block, batch_compression, token_compression):
         super().__init__()
 
         self.block = block
@@ -17,11 +17,22 @@ class Compress_Batches_and_Select_Tokens_Block_Wrapper(nn.Module):
         self.cluster_ids = None
 
         # Store compression rates 
-        self.n_new_batches = n_new_batches  
-        self.n_new_tokens = n_new_tokens
+        self.batch_compression = batch_compression  
+        self.token_compression = token_compression
+
+        self.n_new_batches = 0
+        self.n_new_tokens = 0 
 
 
     def merge_batches_and_select_tokens(self, x: torch.Tensor) -> torch.Tensor:
+
+        # Get input dimensions 
+        n_batches, n_tokens, _  = x.size()
+
+        # Compute the new number of token and batches 
+        self.n_new_tokens = max(1, int(self.token_compression * n_tokens))
+        self.n_new_batches = max(2, int(self.batch_compression * n_batches))
+
 
         # Store device
         device = x.device
@@ -148,9 +159,7 @@ class model(nn.Module):
                  channel,
                  decoder,
                  split_index,
-                 batch_compression, 
-                 token_compression,
-                 batch_size,
+                 compression,
                  *args, **kwargs):
         
         super().__init__(*args, **kwargs)
@@ -158,11 +167,11 @@ class model(nn.Module):
         self.compressor_module = None
 
 
-        # Store compression (is updated in build_model)
-        self.compression = 0
-        
+        # Store compression
+        self.compression = compression
+
         # Build model 
-        self.model = self.build_model(model, encoder, channel, decoder, split_index, batch_compression, token_compression, batch_size)
+        self.model = self.build_model(model, encoder, channel, decoder, split_index, compression)
 
         # Store channel 
         self.channel = channel
@@ -180,26 +189,17 @@ class model(nn.Module):
                     channel,
                     decoder,
                     split_index,
-                    batch_compression, 
-                    token_compression,
-                    batch_size):
+                    compression):
 
 
-        # Get original n_tokens 
-        img_size = model.default_cfg['input_size'][-1]
-        patch_size = model.patch_embed.patch_size[0]  # Usually a tuple
-        n_tokens = (img_size // patch_size) ** 2 + 1
+        # Resolve compression knowing token_compression = batch_compression ** 4
+        batch_compression = compression ** (1/5)
+        token_compression = batch_compression ** 4
 
-        # Compute the new number of token and batches 
-        n_new_tokens = max(1, int(token_compression * n_tokens))
-        n_new_batches = max(2, int(batch_compression * batch_size))
-
-        # Store the compression 
-        self.compression = (n_new_tokens / n_tokens) * (n_new_batches / batch_size)
 
         # Wrap last block with our compression method 
         model.blocks[split_index -1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index -1].attn)
-        model.blocks[split_index -1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index -1], n_new_batches, n_new_tokens)
+        model.blocks[split_index -1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index -1], batch_compression, token_compression)
         self.compressor_module = model.blocks[split_index -1]
 
         # Split the original model 

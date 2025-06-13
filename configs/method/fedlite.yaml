@@ -1,0 +1,11 @@
+model:
+  _target_: methods.fedlite.model
+  q: ${..parameters.q}
+  r: ${..parameters.r}
+  l: ${..parameters.l}
+
+name : fedlite
+parameters: 
+  q: 192
+  r: 1
+  l: 100

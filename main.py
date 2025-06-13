@@ -134,7 +134,7 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
     best_val_loss = float('inf')
     epochs_without_improvement = 0
 
-    for epoch in range(1, 100):
+    for epoch in range(1, 1000):
         torch.cuda.empty_cache()
         if plot:
             print(f"\n\nEPOCH {epoch}")
