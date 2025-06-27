@@ -1,6 +1,6 @@
 # Default Configurations 
 defaults:
-  - communication: noisy
+  - communication: clean
   - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
@@ -10,7 +10,7 @@ defaults:
 # Hyperparameters 
 hyperparameters:
   split_index : 3  # Where to split the network
-  experiment_name : prova  # Name of the experiment
+  experiment_name : baselines  # Name of the experiment
 
 
 # Set folders for results, datasets and plots 
