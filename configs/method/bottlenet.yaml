@@ -1,0 +1,8 @@
+model:
+  _target_: methods.bottlenet.model
+  compression: ${..parameters.compression}
+  n_layers: ${..parameters.n_layers}
+name : Bottlenet
+parameters:
+  compression: 0.05
+  n_layers: 2

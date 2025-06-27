@@ -3,9 +3,10 @@ model:
   q: ${..parameters.q}
   r: ${..parameters.r}
   l: ${..parameters.l}
+  batch_size: ${dataset.batch_size}
 
 name : fedlite
 parameters: 
-  q: 192
-  r: 1
-  l: 100
+  q: 18912 # Number of subvectors, needs to divide 192  x 197
+  r: 1 # fixed at 1 
+  l: 64 # Number of clusters  (needs to be less than B * q)

@@ -20,8 +20,7 @@ class RandomTopKModifier(nn.Module):
         _, top_k_indices = torch.topk(torch.abs(x_flat), k, sorted=False)
 
         probs = torch.full_like(x_flat.real, self.random_portion / (sample_dim - k))
-        probs = torch.scatter(probs, 1, top_k_indices,
-                                (1 - self.random_portion) / k)
+        probs = torch.scatter(probs, 1, top_k_indices, (1 - self.random_portion) / k)
         
         selected_indices = torch.multinomial(probs, k)
         mask = torch.scatter(torch.zeros_like(x_flat), 1, selected_indices, 1)
@@ -41,18 +40,17 @@ class model(nn.Module):
 
     def __init__(self, 
                  model: VisionTransformer,
-                 encoder,
                  channel,
-                 decoder,
                  split_index,
                  rate,
                  batch_size,
+                 random_flag,
                  *args, **kwargs):
         
         super().__init__(*args, **kwargs)
         
         # Build model 
-        self.model = self.build_model(model, encoder, channel, decoder, split_index, rate)
+        self.model = self.build_model(model, channel, split_index, rate, random_flag)
 
         # Store compression
         self.compression = self.get_compression_level(model, rate, batch_size)
@@ -70,19 +68,24 @@ class model(nn.Module):
     # Function to build model 
     def build_model(self, 
                     model, 
-                    encoder,
                     channel,
-                    decoder,
                     split_index,
-                    rate, 
+                    rate,
+                    random_flag
                     ):
 
         # Split the original model 
         blocks_before = model.blocks[:split_index]
         blocks_after = model.blocks[split_index:]
 
+        # Handle top-k and random top-k 
+        if random_flag:
+            random_portion = 0.1
+        else:
+            random_portion = 0.0
+
         # Add the RandomTopK selection after the encoder 
-        model.blocks = nn.Sequential(*blocks_before, encoder, RandomTopKModifier(rate), channel, decoder, *blocks_after)
+        model.blocks = nn.Sequential(*blocks_before, RandomTopKModifier(rate, random_portion), channel, *blocks_after)
 
         return model 
 

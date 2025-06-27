@@ -1,7 +1,3 @@
 channel:
   _target_: comm.communication.Identity
-encoder:
-  _target_: comm.communication.Identity
-decoder:
-  _target_: comm.communication.Identity
 name: clean 

@@ -2,7 +2,7 @@ model:
   _target_: methods.random_top_k.model
   rate: ${..parameters.rate}
   batch_size: ${dataset.batch_size}
-  random_flag: True
-name : Random_Top_K
+  random_flag: False
+name : Top_K
 parameters: 
   rate: 0.06

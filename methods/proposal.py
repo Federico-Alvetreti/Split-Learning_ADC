@@ -155,9 +155,7 @@ class model(nn.Module):
 
     def __init__(self, 
                  model: VisionTransformer,
-                 encoder,
                  channel,
-                 decoder,
                  split_index,
                  compression,
                  *args, **kwargs):
@@ -171,7 +169,7 @@ class model(nn.Module):
         self.compression = compression
 
         # Build model 
-        self.model = self.build_model(model, encoder, channel, decoder, split_index, compression)
+        self.model = self.build_model(model, channel, split_index, compression)
 
         # Store channel 
         self.channel = channel
@@ -185,9 +183,7 @@ class model(nn.Module):
     # Function to build model 
     def build_model(self, 
                     model, 
-                    encoder,
                     channel,
-                    decoder,
                     split_index,
                     compression):
 
@@ -197,7 +193,7 @@ class model(nn.Module):
         token_compression = batch_compression ** 4
 
 
-        # Wrap last block with our compression method 
+        # Wrap last block with our compression method
         model.blocks[split_index -1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index -1].attn)
         model.blocks[split_index -1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index -1], batch_compression, token_compression)
         self.compressor_module = model.blocks[split_index -1]
@@ -207,7 +203,7 @@ class model(nn.Module):
         blocks_after = model.blocks[split_index:]
 
         # Add comm pipeline and compression modules 
-        model.blocks = nn.Sequential(*blocks_before, encoder, channel, decoder, *blocks_after)
+        model.blocks = nn.Sequential(*blocks_before, channel, *blocks_after)
 
         return model 
 

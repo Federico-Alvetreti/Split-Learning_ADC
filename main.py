@@ -125,14 +125,13 @@ def validation_phase(model, val_data_loader, loss, device, plot):
   return average_val_loss, average_val_accuracy
 
 # Standard training / validation cicle
-def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, loss=torch.nn.CrossEntropyLoss(),  plot=True, patience=10):
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, hydra_output_dir, loss=torch.nn.CrossEntropyLoss(),  plot=True):
 
     # Lists to store results 
     train_losses, train_accuracies, val_losses, val_accuracies, communication_cost = [], [], [], [], []
 
-    # Convergence check 
-    best_val_loss = float('inf')
-    epochs_without_improvement = 0
+    best_val_accuracy = 0
+
 
     for epoch in range(1, 1000):
         torch.cuda.empty_cache()
@@ -160,16 +159,13 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         if model.communication > max_communication:
             break 
 
-        # Early stopping mechanism 
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            epochs_without_improvement = 0
-        else:
-            epochs_without_improvement += 1
-            if epochs_without_improvement >= patience:
-                if plot:
-                    print(f"⏹️ Early stopping: no improvement in val loss for {patience} epochs.")
-                break
+        # Save the best model 
+        if avg_val_accuracy > best_val_accuracy:
+
+            # Save the model checkpoint
+            model_file = os.path.join(hydra_output_dir, "best_model.pt")
+            torch.save(model.state_dict(), model_file)
+
 
 
     # Collect results
@@ -179,10 +175,17 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         "Val losses": val_losses,
         "Val accuracies": val_accuracies,
         "Communication cost" : communication_cost,
-        "Compression" : model.compression
-    }
+        "Compression" : model.compression}
 
-    return results
+    # Store results 
+    results_file = os.path.join(hydra_output_dir, "training_results.json")
+    
+    # Save the results dictionary as a JSON file
+    with open(results_file, "w") as f:
+        json.dump(results, f, indent=4)
+
+
+    return 
 
 
 # Hydra configuration 
@@ -198,31 +201,27 @@ def main(cfg):
     # Set device  
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Get hyperparameters 
+    # Get dataset parameters 
     batch_size = cfg.dataset.batch_size
-    max_communication = cfg.hyperparameters.max_communication
+    max_communication = cfg.dataset.max_communication
 
     # Get datasets 
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
     val_dataset = hydra.utils.instantiate(cfg.dataset.test)
 
     # Get dataloaders
-    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True,batch_size=batch_size, num_workers = 16)
+    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True, drop_last=True, batch_size=batch_size, num_workers = 16)
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size, num_workers = 16)
 
     # Get model 
     model = hydra.utils.instantiate(cfg.model)
 
-    # Get encoder, channel and decoder
-    encoder = hydra.utils.instantiate(cfg.communication.encoder, input_size = model.num_features)
+    # Get channel
     channel = hydra.utils.instantiate(cfg.communication.channel)
-    decoder = hydra.utils.instantiate(cfg.communication.decoder, input_size=2 * encoder.output_size, output_size=model.num_features)
     
     # Apply method to the model 
     model = hydra.utils.instantiate(cfg.method.model,
-                                    encoder = encoder,
                                     channel = channel,
-                                    decoder = decoder,
                                     split_index = cfg.hyperparameters.split_index,
                                     model=model).to(device)
 
@@ -233,22 +232,12 @@ def main(cfg):
     # Print model, dataset and method
     print(f"\n\nTraining: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression} \n")
 
-    # Train 
-    results = training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device)
-
     # Get the current Hydra output directory
     hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
-    # Define the results file path inside Hydra's directory
-    results_file = os.path.join(hydra_output_dir, "training_results.json")
+    # Train 
+    training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir)
 
-    # Save the results dictionary as a JSON file
-    with open(results_file, "w") as f:
-        json.dump(results, f, indent=4)
-
-    # Save the model checkpoint
-    model_file = os.path.join(hydra_output_dir, "model.pt")
-    torch.save(model.state_dict(), model_file)
 
     return
 

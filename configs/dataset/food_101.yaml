@@ -41,4 +41,5 @@ test:
 
 name : food-101
 num_classes : 101 
-batch_size : 256
+batch_size : 128
+max_communication: 3000 # This is the number of batches sent to obtain convergence with the uncompressed method 

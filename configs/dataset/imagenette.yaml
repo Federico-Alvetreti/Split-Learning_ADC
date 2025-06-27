@@ -41,6 +41,5 @@ test:
   size: 'full'
 
 name : imagenette
-
 num_classes : 10
 batch_size : 128

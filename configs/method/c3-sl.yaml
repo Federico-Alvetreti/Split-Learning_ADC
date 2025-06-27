@@ -1,0 +1,8 @@
+model:
+  _target_: methods.c3-sl.model
+  R: ${..parameters.R}
+  batch_size: ${dataset.batch_size}
+name : C3-SL
+parameters:
+  R: 8
+

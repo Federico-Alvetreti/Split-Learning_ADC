@@ -1,17 +1,16 @@
 # Default Configurations 
 defaults:
-  - communication: clean
+  - communication: noisy
   - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : fedlite
+  - method : random_top_k
   - _self_
 
 # Hyperparameters 
 hyperparameters:
   split_index : 3  # Where to split the network
-  experiment_name : baselines  # Name of the experiment
-  max_communication: 3000 # About 10 epochs of base on food_101
+  experiment_name : prova  # Name of the experiment
 
 
 # Set folders for results, datasets and plots 
