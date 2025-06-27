@@ -61,9 +61,7 @@ class model(nn.Module):
 
     def __init__(self, 
                  model: VisionTransformer,
-                 encoder,
                  channel,
-                 decoder,
                  split_index,
                  n_bits,
                  *args, **kwargs):
@@ -71,7 +69,7 @@ class model(nn.Module):
         super().__init__(*args, **kwargs)
         
         # Build model 
-        self.model = self.build_model(model, encoder, channel, decoder, split_index, n_bits)
+        self.model = self.build_model(model, channel, split_index, n_bits)
 
         # Store compression
         self.compression = n_bits / 32
@@ -88,9 +86,7 @@ class model(nn.Module):
     # Function to build model 
     def build_model(self,
                     model, 
-                    encoder,
                     channel,
-                    decoder,
                     split_index,
                     n_bits, 
                     ):
@@ -100,7 +96,7 @@ class model(nn.Module):
         blocks_after = model.blocks[split_index:]
 
         # Add quantization layer after the encoder 
-        model.blocks = nn.Sequential(*blocks_before, encoder, Quantization_Layer(n_bits), channel, decoder, *blocks_after)
+        model.blocks = nn.Sequential(*blocks_before, Quantization_Layer(n_bits), channel, *blocks_after)
 
         return model 
     

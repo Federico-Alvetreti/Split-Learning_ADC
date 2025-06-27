@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Get models and datsets 
-models=("deit_tiny_patch16_224.fb_in1k" "deit_small_patch16_224.fb_in1k")
-datasets=("cifar100" "food-101")
+models=("deit_tiny_patch16_224" "deit_small_patch16_224")
+datasets=("cifar_100" "food_101")
 
 # For each combination of dataset and model 
 for model in "${models[@]}"; do
@@ -14,7 +14,6 @@ for model in "${models[@]}"; do
             method="base"\
             dataset="$dataset"\
             model="$model"
-
 
 
         # ------------ C3-SL -----------
@@ -33,12 +32,11 @@ for model in "${models[@]}"; do
 
         for compression in "${compressions[@]}"; do
             python main.py \
-                method.parameters.compression="$R" \
+                method.parameters.compression="$compression" \
                 method="bottlenet"\
                 dataset="$dataset"\
                 model="$model"
         done
-
 
 
         # ------------ Quantization -----------
