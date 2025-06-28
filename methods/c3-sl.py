@@ -191,6 +191,7 @@ class model(nn.Module):
 
     # Forward 
     def forward(self, x):
+        batch_size = x.shape[0]
         if self.training: 
-            self.communication += self.compression
+            self.communication += self.compression * batch_size
         return self.model.forward(x)

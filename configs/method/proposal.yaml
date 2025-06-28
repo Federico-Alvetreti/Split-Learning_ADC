@@ -3,5 +3,5 @@ model:
   compression: ${..parameters.compression}
 name: proposal
 parameters:
-  compression: 0.1
+  compression: 0.2
 

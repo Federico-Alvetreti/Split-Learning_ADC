@@ -4,13 +4,13 @@ defaults:
   - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : random_top_k
+  - method : base
   - _self_
 
 # Hyperparameters 
 hyperparameters:
   split_index : 3  # Where to split the network
-  experiment_name : baselines  # Name of the experiment
+  experiment_name : prova  # Name of the experiment
 
 
 # Set folders for results, datasets and plots 

@@ -84,7 +84,7 @@ def visualise_clusters(model: torch.nn.Module,
     for i in range(2):
         model.model.blocks[i].attn = Store_Whole_Attn_Wrapper(model.model.blocks[i].attn)
 
-    imgs, _ = next(iter(dataloader))
+    imgs, label = next(iter(dataloader))
     imgs = imgs.to(device)
     with torch.no_grad():
         logits = model(imgs)  # shape [B, 101]
@@ -166,6 +166,11 @@ def visualise_clusters(model: torch.nn.Module,
                 ha='right', va='bottom',
                 fontsize=10, family="monospace",
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
+        
+        fig.text(0.99, 0.05, label,
+                ha='right', va='bottom',
+                fontsize=10, family="monospace",
+                bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
 
         plt.tight_layout()
         plt.savefig(output_dir + f"cluster_{cid.item()}_imgs.png", dpi=300)
@@ -185,17 +190,11 @@ def instantiate_from_config(cfg):
     # Model and pieces -------------------------------------------------------
     backbone_model = hydra.utils.instantiate(cfg.model)
 
-    encoder = hydra.utils.instantiate(cfg.communication.encoder,
-                                      input_size=backbone_model.num_features)
     channel = hydra.utils.instantiate(cfg.communication.channel)
-    decoder = hydra.utils.instantiate(cfg.communication.decoder,
-                                      input_size=2 * encoder.output_size,
-                                      output_size=backbone_model.num_features)
+
 
     model = hydra.utils.instantiate(cfg.method.model,
-                                    encoder=encoder,
                                     channel=channel,
-                                    decoder=decoder,
                                     split_index=cfg.hyperparameters.split_index,
                                     model=backbone_model)
     return model, data_loader
