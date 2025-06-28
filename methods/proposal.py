@@ -46,7 +46,7 @@ class Compress_Batches_and_Select_Tokens_Block_Wrapper(nn.Module):
                                             num_clusters=self.n_new_batches,             
                                             distance='euclidean',        
                                             tol=1e-4,                    
-                                            iter_limit=10,          
+                                            iter_limit=50,          
                                             device=device,
                                             tqdm_flag=False              
                                             )

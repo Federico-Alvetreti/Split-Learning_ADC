@@ -4,7 +4,7 @@ defaults:
   - dataset: food_101
   - model: deit_tiny_patch16_224
   - optimizer: adam
-  - method : base
+  - method : proposal
   - _self_
 
 # Hyperparameters 

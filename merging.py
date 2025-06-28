@@ -29,7 +29,7 @@ def unnorm(batch: torch.Tensor) -> torch.Tensor:
 
 def attention_to_heatmap(attn_vec: torch.Tensor, height: int, width: int) -> torch.Tensor:
     attn = attn_vec[1:].reshape(14, 14)
-    attn = (attn - attn.min()) / (attn.max() - attn.min() + 1e-6)
+    # attn = (attn - attn.min()) / (attn.max() - attn.min() + 1e-6)
     attn = F.interpolate(attn[None, None], size=(height, width), mode="bilinear", align_corners=False)[0, 0]
     return attn.cpu()
 
@@ -110,7 +110,6 @@ def visualise_clusters(model: torch.nn.Module,
     imgs_unnorm = unnorm(imgs)
     B, T = third_block_class_attn.shape
     token_keep = max(1, int(comp.token_compression * T))
-    print(comp.token_compression)
     t = 0
     for cid in torch.unique(cluster_ids):
         idxs = (cluster_ids == cid).nonzero(as_tuple=True)[0]
@@ -138,7 +137,7 @@ def visualise_clusters(model: torch.nn.Module,
         top_probs = topk.values
         top_indices = topk.indices
 
-        fig, axes = plt.subplots(2, n, figsize=(3 * n, 6))
+        fig, axes = plt.subplots(2, n, figsize=(1 + 3 * n, 6))
         fig.suptitle(f"Cluster {cid.item()}", fontsize=14)
         if n == 1:
             axes = axes.reshape(2, 1)
@@ -148,7 +147,8 @@ def visualise_clusters(model: torch.nn.Module,
             H, W = img.shape[1:]
 
             # Rollou
-            attn = masked_attn_cls @ second_block_attn[i] @ first_block_attn[i]  # [1, T]
+            # attn = masked_attn_cls @ second_block_attn[i] @ first_block_attn[i]  # [1, T]
+            attn = third_block_class_attn[i]
             heat = attention_to_heatmap(attn.squeeze(0), H, W)
 
             # Top row – raw image
@@ -161,14 +161,15 @@ def visualise_clusters(model: torch.nn.Module,
             axes[1, col].set_xticks([]); axes[1, col].set_yticks([])
 
 
-        pred_text = "\n".join(f"{class_names[i]}: {p:.2f}" for i, p in zip(top_indices, top_probs))
+        pred_text ="Prediction: \n" +  "\n".join(f"{class_names[i]}: {p:.2f}" for i, p in zip(top_indices, top_probs))
         fig.text(0.99, 0.01, pred_text,
                 ha='right', va='bottom',
                 fontsize=10, family="monospace",
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
         
-        fig.text(0.99, 0.05, label,
-                ha='right', va='bottom',
+        correct_labels = "Label: \n" + "\n".join(class_names[i] for i in label[idxs])
+        fig.text(0.01, 0.01, correct_labels,
+                ha='left', va='bottom',
                 fontsize=10, family="monospace",
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
 
@@ -214,13 +215,13 @@ def main():
     compression_path ="{'compression': "+str(compression) +"}"
     
     # Get directory and congiguration 
-    run_dir = "/home/federico/Desktop/Split_Learning/results/baselines/" + dataset + "/" + model_name + "/proposal/communication=clean/params=" + compression_path
+    run_dir = "/home/federico/Desktop/Split_Learning/results/prova/" + dataset + "/" + model_name + "/proposal/communication=clean/params=" + compression_path
     run_cfg = OmegaConf.load(run_dir + "/.hydra" + "/config.yaml")
 
 
     # Load model and data loader 
     model, data_loader = instantiate_from_config(run_cfg)
-    model.load_state_dict(torch.load(run_dir + "/model.pt", map_location="cpu"))
+    model.load_state_dict(torch.load(run_dir + "/best_model.pt", map_location="cpu"))
 
 
     output_dir = "/home/federico/Desktop/Split_Learning/plots/clusters/" + dataset + "/" + model_name +"/" + str(compression) +"/"
