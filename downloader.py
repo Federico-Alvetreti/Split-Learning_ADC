@@ -3,11 +3,11 @@ import timm
 import torchvision
 
 # DATASETS
-torchvision.datasets.CIFAR100('./data', train=True)
-torchvision.datasets.CIFAR100('./data', train=False)
+torchvision.datasets.CIFAR100('./data', train=True, download=True)
+torchvision.datasets.CIFAR100('./data', train=False, download=True)
 
-torchvision.datasets.Food101('./data', split='train')
-torchvision.datasets.Food101('./data', split='test')
+torchvision.datasets.Food101('./data', split='train', download=True)
+torchvision.datasets.Food101('./data', split='test', download=True)
 
 # MODELS
 timm.create_model(model_name='deit_small_patch16_224.fb_in1k', pretrained=True)

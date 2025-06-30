@@ -17,7 +17,7 @@ sbatch <<EOT
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --job-name="base_${1}_${2}_${3}"
+#SBATCH --job-name="splitlearning_${1}_${2}_${3}"
 #SBATCH --out="./sout/log/advtra_${1}_${2}_${3}.out"
 #SBATCH --error="./sout/err/advtra_${1}_${2}_${3}.err"
 
