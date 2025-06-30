@@ -32,7 +32,7 @@ echo "========================"
 
 # Change to working directory
 echo "Changing to working directory..."
-cd /leonardo/home/userexternal/jpomponi/Split || {
+cd /leonardo/home/userexternal/jpomponi/Split-Learning || {
     echo "ERROR: Cannot change to /leonardo/home/userexternal/jpomponi/Split-Learning"
     exit 1
 }
