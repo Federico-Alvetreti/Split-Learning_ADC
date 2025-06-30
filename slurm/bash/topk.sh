@@ -7,11 +7,8 @@ for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
         rates=(0.01 0.05 0.1 0.2 0.3 0.4 0.5)
         for rate in "${rates[@]}"; do
-            python main.py \
-                method.parameters.rate="$rate" \
-                method="top_k"\
-                dataset="$dataset"\
-                model="$model"
+            sbatch  slurm/two_parameter.sh "top_k" $model $dataset $rate
+
         done
     done
 done

@@ -7,12 +7,6 @@ for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
         compressions=(0.01 0.05 0.1 0.2 0.3 0.4 0.5)
         for compression in "${compressions[@]}"; do
-          python main.py \
-              method.parameters.compression="$compression" \
-              method="bottlenet"\
-              dataset="$dataset"\
-              model="$model"
-          done
-          sbatch  slurm/two_parameter.sh "bottlenet" $model $dataset
+          sbatch  slurm/two_parameter.sh "bottlenet" $model $dataset $compressions
     done
 done

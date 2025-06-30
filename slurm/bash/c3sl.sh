@@ -7,11 +7,7 @@ for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
         Rs=(2 4 8 16 32)
         for R in "${Rs[@]}"; do
-          python main.py \
-              method.parameters.R="$R" \
-              method="c3-sl"\
-              dataset="$dataset"\
-              model="$model"
+            sbatch  slurm/two_parameter.sh "c3-sl" $model $dataset $R
           done
     done
 done

@@ -7,11 +7,7 @@ for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
         numbers_of_bits=(1 3 5 6 9 12 15)
         for n_bits in "${numbers_of_bits[@]}"; do
-            python main.py \
-                method.parameters.n_bits="$n_bits" \
-                method="quantization"\
-                dataset="$dataset"\
-                model="$model"
+            sbatch  slurm/two_parameter.sh "quantization" $model $dataset $n_bits
         done
     done
 done
