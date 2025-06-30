@@ -53,7 +53,7 @@ source activate ood || {
     exit 1
 }
 
-srun python main.py method=${1} dataset=${2} model=${3} device=0
+srun python main.py method=${1} dataset=${3} model=${2}
 
 
 # Check exit status
