@@ -192,13 +192,12 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
 @hydra.main(config_path="configs",
             version_base='1.2',
             config_name="default")
-
 def main(cfg):
-    
-    # Set seed for reproducibility 
-    torch.manual_seed(42) 
 
-    # Set device  
+    # Set seed for reproducibility 
+    torch.manual_seed(42)
+
+    # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Get dataset parameters 
@@ -237,7 +236,6 @@ def main(cfg):
 
     # Train 
     training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir)
-
 
     return
 
