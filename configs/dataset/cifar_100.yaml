@@ -42,4 +42,4 @@ test:
 name: cifar100
 num_classes: 100
 batch_size: 128
-max_communication: 4000 # This is the number of batches sent to obtain convergence with the uncompressed method 
+max_communication: 500000 # Number of samples that can be sent. 
