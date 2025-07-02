@@ -79,6 +79,7 @@ class Decoder(nn.Module):
 
     def __init__(self,
                  keys,
+                 n_tokens,
                  *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -86,6 +87,7 @@ class Decoder(nn.Module):
 
         # Store keys 
         self.keys = keys
+        self.n_tokens = n_tokens
 
     def forward(self, x, *args, **kwargs):
 
@@ -100,13 +102,13 @@ class Decoder(nn.Module):
 
             # Get dimensions 
             batch_over_R, R, features_dim = x.shape
-            batch_size = batch_over_R *  R
+            batch_size = batch_over_R * R
 
-            # Reshape into B x D 
-            x = x.reshape(batch_size, features_dim)
+            # # Reshape into B x D
+            # x = x.reshape(batch_size, features_dim)
 
             # Reshape into B X T X F
-            x = x.reshape(batch_size, shapes[-2], shapes[-1])
+            x = x.reshape(batch_size, self.n_tokens, -1)
 
         return x
 
@@ -179,7 +181,7 @@ class model(nn.Module):
 
         # Get encoder and decoder
         encoder = Encoder(R, self.keys)
-        decoder = Decoder(self.keys)
+        decoder = Decoder(self.keys, self.n_tokens)
 
         # Split the original model 
         blocks_before = model.blocks[:split_index]
