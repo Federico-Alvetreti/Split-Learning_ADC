@@ -18,8 +18,8 @@ sbatch <<EOT
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --job-name="splitlearning_${1}_${2}_${3}_${4}"
-#SBATCH --out="./sout/log/advtra_${1}_${2}_${3}_${4}.out"
-#SBATCH --error="./sout/err/advtra_${1}_${2}_${3}_${4}.err"
+#SBATCH --out="./sout/log/splitlearning_${1}_${2}_${3}_${4}.out"
+#SBATCH --error="./sout/err/splitlearning_${1}_${2}_${3}_${4}.err"
 
 # Print debug information
 echo "=== Job Information ==="
