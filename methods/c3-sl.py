@@ -90,6 +90,7 @@ class Decoder(nn.Module):
     def forward(self, x, *args, **kwargs):
 
         if self.training:
+            shapes = x.shape
 
             # from B/R x d  -> B/R x 1 x d 
             x = x.unsqueeze(1)
@@ -105,7 +106,7 @@ class Decoder(nn.Module):
             x = x.reshape(batch_size, features_dim)
 
             # Reshape into B X T X F
-            x = x.reshape(batch_size, 197, 192)
+            x = x.reshape(batch_size, shapes[-2], shapes[-1])
 
         return x
 
