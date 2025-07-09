@@ -132,7 +132,6 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
 
     best_val_accuracy = 0
 
-
     for epoch in range(1, 1000):
         torch.cuda.empty_cache()
         if plot:
@@ -154,7 +153,6 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             print(f"\nTrain loss: {avg_train_loss:.4f}; Val loss: {avg_val_loss:.4f}")
             print(f"Train accuracy: {avg_train_accuracy:.2f}; Val accuracy: {avg_val_accuracy:.2f}")
 
-
         # Check communication 
         if model.communication > max_communication:
             break 
@@ -162,28 +160,26 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         # Save the best model 
         if avg_val_accuracy > best_val_accuracy:
 
+            best_val_accuracy = avg_val_accuracy
             # Save the model checkpoint
             model_file = os.path.join(hydra_output_dir, "best_model.pt")
             torch.save(model.state_dict(), model_file)
 
+        # Collect results
+        results = {
+            "Train losses": train_losses,
+            "Train accuracies": train_accuracies,
+            "Val losses": val_losses,
+            "Val accuracies": val_accuracies,
+            "Communication cost" : communication_cost,
+            "Compression" : model.compression}
 
+        # Store results
+        results_file = os.path.join(hydra_output_dir, "training_results.json")
 
-    # Collect results
-    results = {
-        "Train losses": train_losses,
-        "Train accuracies": train_accuracies,
-        "Val losses": val_losses,
-        "Val accuracies": val_accuracies,
-        "Communication cost" : communication_cost,
-        "Compression" : model.compression}
-
-    # Store results 
-    results_file = os.path.join(hydra_output_dir, "training_results.json")
-    
-    # Save the results dictionary as a JSON file
-    with open(results_file, "w") as f:
-        json.dump(results, f, indent=4)
-
+        # Save the results dictionary as a JSON file
+        with open(results_file, "w") as f:
+            json.dump(results, f, indent=4)
 
     return 
 
