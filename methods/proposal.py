@@ -166,6 +166,7 @@ class model(nn.Module):
                  channel,
                  split_index,
                  compression,
+                 pooling='attention',
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -175,7 +176,7 @@ class model(nn.Module):
         self.compression = compression
 
         # Build model 
-        self.model = self.build_model(model, channel, split_index, compression)
+        self.model = self.build_model(model, channel, split_index, compression, pooling)
 
         # Store channel 
         self.channel = channel
@@ -191,7 +192,8 @@ class model(nn.Module):
                     model,
                     channel,
                     split_index,
-                    compression):
+                    compression,
+                    pooling):
         # Resolve compression knowing token_compression = batch_compression ** 4
         batch_compression = compression ** (1 / 5)
         token_compression = batch_compression ** 4
@@ -200,7 +202,8 @@ class model(nn.Module):
         model.blocks[split_index - 1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index - 1].attn)
         model.blocks[split_index - 1] = Compress_Batches_and_Select_Tokens_Block_Wrapper(model.blocks[split_index - 1],
                                                                                          batch_compression,
-                                                                                         token_compression)
+                                                                                         token_compression,
+                                                                                         pooling=pooling)
         self.compressor_module = model.blocks[split_index - 1]
 
         # Split the original model 
