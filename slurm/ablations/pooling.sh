@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+model=${1:-"deit_tiny_patch16_224"}
+dataset=${2:-"cifar_100"}
+compression=${3:-0.5}
+
+#models=("deit_tiny_patch16_224" "deit_small_patch16_224")
+#datasets=("cifar_100" "food_101")
+
+pool=("cls" "average" "attention")
+for ppl in "${pool[@]}"; do
+    sbatch  slurm/main.sh "proposal" $model $dataset $compression $ppl
+done

@@ -1,7 +1,12 @@
 model:
   _target_: methods.proposal.model
   compression: ${..parameters.compression}
+  pooling: ${..parameters.pooling}
 name: proposal
 parameters:
   compression: 0.2
-
+  pooling: cls
+#model:
+#  _target_: methods.proposal.NameOfClass
+#  compression: 0.2
+#Use NameOfClass instead of "name: proposal" as before

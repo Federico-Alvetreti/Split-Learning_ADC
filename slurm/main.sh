@@ -17,9 +17,16 @@ sbatch <<EOT
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --job-name="splitlearning_${1}_${2}_${3}_${4}"
-#SBATCH --out="./sout/log/splitlearning_${1}_${2}_${3}_${4}.out"
-#SBATCH --error="./sout/err/splitlearning_${1}_${2}_${3}_${4}.err"
+
+old="$IFS"
+IFS='_'
+str="'$*'"
+
+#SBATCH --job-name="splitlearning_${str}"
+#SBATCH --out="./sout/log/splitlearning_${str}.out"
+#SBATCH --error="./sout/err/splitlearning_${str}.err"
+
+IFS=$old
 
 # Print debug information
 echo "=== Job Information ==="
@@ -60,7 +67,11 @@ elif [ ${1} = 'bottlenet' ]; then
 elif [ ${1} = 'c3-sl' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.R=${4}
 elif [ ${1} = 'proposal' ]; then
-  srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4}
+  if [ $# -eq 4 ]; then
+    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4}
+  else
+    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4} method.parameters.pooling=${5}
+  fi
 elif [ ${1} = 'quantization' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.n_bits=${4}
 elif [ ${1} = 'random_top_k' ]; then
