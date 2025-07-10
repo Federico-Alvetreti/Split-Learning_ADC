@@ -8,6 +8,13 @@ export HYDRA_FULL_ERROR=1
 export TQDM_LOG=1
 export TQDM_LOG_INTERVAL=100
 
+
+old="$IFS"
+IFS='_'
+str="$*"
+
+echo "${str}"
+
 sbatch <<EOT
 #!/bin/sh
 #SBATCH -A IscrC_AdvCMT
@@ -17,11 +24,6 @@ sbatch <<EOT
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-
-old="$IFS"
-IFS='_'
-str="$*"
-
 #SBATCH --job-name="splitlearning_${str}"
 #SBATCH --out="./sout/log/splitlearning_${str}.out"
 #SBATCH --error="./sout/err/splitlearning_${str}.err"
