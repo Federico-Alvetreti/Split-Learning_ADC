@@ -20,7 +20,7 @@ sbatch <<EOT
 
 old="$IFS"
 IFS='_'
-str="'$*'"
+str="$*"
 
 #SBATCH --job-name="splitlearning_${str}"
 #SBATCH --out="./sout/log/splitlearning_${str}.out"
