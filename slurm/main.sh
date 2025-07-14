@@ -8,12 +8,13 @@ export HYDRA_FULL_ERROR=1
 export TQDM_LOG=1
 export TQDM_LOG_INTERVAL=100
 
-
 old="$IFS"
 IFS='_'
 str="$*"
 
 echo "${str}"
+
+IFS=$old
 
 sbatch <<EOT
 #!/bin/sh
@@ -27,8 +28,6 @@ sbatch <<EOT
 #SBATCH --job-name="splitlearning_${str}"
 #SBATCH --out="./sout/log/splitlearning_${str}.out"
 #SBATCH --error="./sout/err/splitlearning_${str}.err"
-
-IFS=$old
 
 # Print debug information
 echo "=== Job Information ==="

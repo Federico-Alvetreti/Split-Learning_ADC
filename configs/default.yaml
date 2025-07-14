@@ -22,8 +22,8 @@ core:
 # Set results folder name 
 hydra:
   run:
-#    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
-    dir: test
+    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
+#    dir: test
 
   job:
     chdir: No
