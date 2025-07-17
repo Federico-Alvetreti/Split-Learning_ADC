@@ -68,11 +68,11 @@ elif [ ${1} = 'bottlenet' ]; then
 elif [ ${1} = 'c3-sl' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.R=${4}
 elif [ ${1} = 'proposal' ]; then
-  if [ $# -eq 4 ]; then
-    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4}
-  else
-    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4} method.parameters.pooling=${5}
-  fi
+#  if [ $# -eq 4 ]; then
+#    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4}
+#  else
+srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4} method.parameters.pooling=${5:-attention}
+#  fi
 elif [ ${1} = 'quantization' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.n_bits=${4}
 elif [ ${1} = 'random_top_k' ]; then

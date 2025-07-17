@@ -226,9 +226,11 @@ def main(cfg):
 
     # Print model, dataset and method
     print(f"\n\nTraining: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression} \n")
+    print(f"\n\nParameters:  {cfg.method.parameters}\n\n  ")
 
     # Get the current Hydra output directory
     hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+    print(hydra_output_dir)
 
     # Train 
     training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir)
