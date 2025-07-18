@@ -9,5 +9,5 @@ compression=${3:-0.5}
 
 pool=(16 32 64 128)
 for ppl in "${pool[@]}"; do
-    sbatch  slurm/main.sh "proposal" $model $dataset $compression $ppl
+    sbatch  slurm/main_batch_size.sh "proposal" $model $dataset $compression $ppl
 done
