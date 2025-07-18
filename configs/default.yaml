@@ -5,6 +5,7 @@ defaults:
   - model: deit_tiny_patch16_224
   - optimizer: adam
   - method : proposal
+  - hydra: default
   - _self_
 
 # Hyperparameters 
@@ -20,20 +21,20 @@ core:
   plots_path : ./plots
 
 # Set results folder name 
-hydra:
-  run:
-    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
-#    dir: test
-
-  job:
-    chdir: No
-    config:
-      override_dirname:
-        exclude_keys: ['comm', 'dataset', 'model', 'optimizer', 'schema','split_index', 'hyperparameters']
-        kv_sep: '='
-        item_sep: '__'
-
-  job_logging:
-    root:
-      level: WARNING  
+#hydra:
+#  run:
+#    dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
+##    dir: test
+#
+#  job:
+#    chdir: No
+#    config:
+#      override_dirname:
+#        exclude_keys: ['comm', 'dataset', 'model', 'optimizer', 'schema','split_index', 'hyperparameters']
+#        kv_sep: '='
+#        item_sep: '__'
+#
+#  job_logging:
+#    root:
+#      level: WARNING
 

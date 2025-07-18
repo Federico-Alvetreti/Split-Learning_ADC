@@ -1,0 +1,14 @@
+run:
+  dir: ${core.results_path}/${hyperparameters.experiment_name}/${dataset.name}_${dataset.batch_size}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
+job:
+  chdir: No
+  config:
+    override_dirname:
+      exclude_keys: ['comm', 'dataset', 'model', 'optimizer', 'schema','split_index', 'hyperparameters']
+      kv_sep: '='
+      item_sep: '__'
+
+job_logging:
+  root:
+    level: WARNING
+

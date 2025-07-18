@@ -195,7 +195,7 @@ def main(cfg):
 
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+
     # Get dataset parameters 
     batch_size = cfg.dataset.batch_size
     max_communication = cfg.dataset.max_communication
