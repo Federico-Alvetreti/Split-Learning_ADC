@@ -7,7 +7,7 @@ for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
         Rs=(2 4 8 16 32)
         for R in "${Rs[@]}"; do
-            sbatch  slurm/two_parameter.sh "c3-sl" $model $dataset $R
+            sbatch  slurm/main.sh "c3-sl" $model $dataset $R
           done
     done
 done

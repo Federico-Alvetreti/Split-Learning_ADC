@@ -5,6 +5,6 @@ datasets=("cifar_100" "food_101")
 
 for model in "${models[@]}"; do
     for dataset in "${datasets[@]}"; do
-          sbatch  slurm/one_parameter.sh "base" $model $dataset
+          sbatch  slurm/main.sh "base" $model $dataset
     done
 done
