@@ -125,7 +125,7 @@ def validation_phase(model, val_data_loader, loss, device, plot):
   return average_val_loss, average_val_accuracy
 
 # Standard training / validation cicle
-def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, hydra_output_dir, loss=torch.nn.CrossEntropyLoss(),  plot=True):
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, hydra_output_dir, loss=torch.nn.CrossEntropyLoss(),  plot=True, save_model=True):
 
     # Lists to store results 
     train_losses, train_accuracies, val_losses, val_accuracies, communication_cost = [], [], [], [], []
@@ -158,12 +158,12 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             break 
 
         # Save the best model 
-        if avg_val_accuracy > best_val_accuracy:
-
-            best_val_accuracy = avg_val_accuracy
-            # Save the model checkpoint
-            model_file = os.path.join(hydra_output_dir, "best_model.pt")
-            torch.save(model.state_dict(), model_file)
+        # if avg_val_accuracy > best_val_accuracy:
+        #
+        #     best_val_accuracy = avg_val_accuracy
+        #     # Save the model checkpoint
+        #     model_file = os.path.join(hydra_output_dir, "best_model.pt")
+        #     torch.save(model.state_dict(), model_file)
 
         # Collect results
         results = {
@@ -181,6 +181,10 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
         with open(results_file, "w") as f:
             json.dump(results, f, indent=4)
 
+        if save_model:
+            model_file = os.path.join(hydra_output_dir, "final_model.pt")
+            torch.save(model.state_dict(), model_file)
+
     return 
 
 
@@ -189,51 +193,58 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             version_base='1.2',
             config_name="default")
 def main(cfg):
-
-    # Set seed for reproducibility 
-    torch.manual_seed(42)
-
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Get dataset parameters 
+    # Get dataset parameters
     batch_size = cfg.dataset.batch_size
     max_communication = cfg.dataset.max_communication
 
-    # Get datasets 
+    # Get datasets
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
     val_dataset = hydra.utils.instantiate(cfg.dataset.test)
 
-    # Get dataloaders
-    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True, drop_last=True, batch_size=batch_size, num_workers = 16)
-    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size, num_workers = 16)
+    # Set seed for reproducibility
+    for seed in [42, 51, 114]:
 
-    # Get model 
-    model = hydra.utils.instantiate(cfg.model)
+        torch.manual_seed(seed)
 
-    # Get channel
-    channel = hydra.utils.instantiate(cfg.communication.channel)
-    
-    # Apply method to the model 
-    model = hydra.utils.instantiate(cfg.method.model,
-                                    channel = channel,
-                                    split_index = cfg.hyperparameters.split_index,
-                                    model=model).to(device)
+        # Get dataloaders
+        train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, shuffle=True, drop_last=True, batch_size=batch_size, num_workers = 16)
+        val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, shuffle=False, batch_size=batch_size, num_workers = 16)
 
-    # Get optimizer 
-    optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
+        # Get model
+        model = hydra.utils.instantiate(cfg.model)
 
+        # Get channel
+        channel = hydra.utils.instantiate(cfg.communication.channel)
 
-    # Print model, dataset and method
-    print(f"\n\nTraining: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression} \n")
-    print(f"\n\nParameters:  {cfg.method.parameters}\n\n  ")
+        # Apply method to the model
+        model = hydra.utils.instantiate(cfg.method.model,
+                                        channel = channel,
+                                        split_index = cfg.hyperparameters.split_index,
+                                        model=model).to(device)
 
-    # Get the current Hydra output directory
-    hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    print(hydra_output_dir)
+        # Get optimizer
+        optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
-    # Train 
-    training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir)
+        # Print model, dataset and method
+        print(f"\n\nTraining seed {seed}: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression} \n")
+        print(f"\n\nParameters:  {cfg.method.parameters}\n\n  ")
+
+        # Get the current Hydra output directory
+        hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+        print(hydra_output_dir)
+
+        if seed != 42:
+            hydra_output_dir = hydra_output_dir.replace('prova', f'prova_{seed}')
+            print(hydra_output_dir)
+        else:
+            continue
+
+        # Train
+        training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir,
+                          save_model=seed == 42)
 
     return
 
