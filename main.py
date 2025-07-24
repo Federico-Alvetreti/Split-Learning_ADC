@@ -249,6 +249,9 @@ def main(cfg):
         else:
             continue
 
+        if os.path.exists(os.path.join(hydra_output_dir, "final_training_results.json")):
+            continue
+
         os.makedirs(hydra_output_dir, exist_ok=True)
         # Train
         training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir,

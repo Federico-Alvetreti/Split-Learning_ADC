@@ -47,11 +47,12 @@ cd /leonardo/home/userexternal/jpomponi/Split-Learning || {
 
 # Load modules
 echo "Loading modules..."
-module load anaconda3
+#module load anaconda3
 module load cuda
 
 conda init
 #conda activate ood
+source activate split_learning
 
 echo "Activating conda environment 'ood'..."
 source activate ood || {
