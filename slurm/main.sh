@@ -20,7 +20,7 @@ sbatch <<EOT
 #!/bin/sh
 #SBATCH -A IscrC_AdvCMT
 #SBATCH -p boost_usr_prod
-#SBATCH --time=4-00:00:00
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
