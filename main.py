@@ -131,6 +131,9 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
     train_losses, train_accuracies, val_losses, val_accuracies, communication_cost = [], [], [], [], []
 
     best_val_accuracy = 0
+    results_file = os.path.join(hydra_output_dir, "training_results.json")
+    final_results_file = os.path.join(hydra_output_dir, "final_training_results.json")
+    results = {}
 
     for epoch in range(1, 1000):
         torch.cuda.empty_cache()
@@ -171,19 +174,21 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             "Train accuracies": train_accuracies,
             "Val losses": val_losses,
             "Val accuracies": val_accuracies,
-            "Communication cost" : communication_cost,
+            "Communication cost": communication_cost,
             "Compression" : model.compression}
 
         # Store results
-        results_file = os.path.join(hydra_output_dir, "training_results.json")
 
         # Save the results dictionary as a JSON file
         with open(results_file, "w") as f:
             json.dump(results, f, indent=4)
 
-        if save_model:
-            model_file = os.path.join(hydra_output_dir, "final_model.pt")
-            torch.save(model.state_dict(), model_file)
+    if save_model:
+        model_file = os.path.join(hydra_output_dir, "final_model.pt")
+        torch.save(model.state_dict(), model_file)
+
+    with open(final_results_file, "w") as f:
+        json.dump(results, f, indent=4)
 
     return 
 
