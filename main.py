@@ -241,8 +241,6 @@ def main(cfg):
         # Get the current Hydra output directory
         hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
-        os.makedirs(hydra_output_dir, exist_ok=True)
-
         print(hydra_output_dir)
 
         if seed != 42:
@@ -251,6 +249,7 @@ def main(cfg):
         else:
             continue
 
+        os.makedirs(hydra_output_dir, exist_ok=True)
         # Train
         training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir,
                           save_model=seed == 42)
