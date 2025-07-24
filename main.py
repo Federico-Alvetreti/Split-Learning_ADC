@@ -224,6 +224,7 @@ def main(cfg):
         # Get channel
         channel = hydra.utils.instantiate(cfg.communication.channel)
 
+
         # Apply method to the model
         model = hydra.utils.instantiate(cfg.method.model,
                                         channel = channel,
@@ -239,6 +240,9 @@ def main(cfg):
 
         # Get the current Hydra output directory
         hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+
+        os.makedirs(hydra_output_dir, exist_ok=True)
+
         print(hydra_output_dir)
 
         if seed != 42:

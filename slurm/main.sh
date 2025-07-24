@@ -20,7 +20,7 @@ sbatch <<EOT
 #!/bin/sh
 #SBATCH -A IscrC_AdvCMT
 #SBATCH -p boost_usr_prod
-#SBATCH --time=24:00:00
+#SBATCH --time=4-00:00:00
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
@@ -28,6 +28,7 @@ sbatch <<EOT
 #SBATCH --job-name="splitlearning_${str}"
 #SBATCH --out="./sout/log/splitlearning_${str}.out"
 #SBATCH --error="./sout/err/splitlearning_${str}.err"
+#SBATCH -qos boost_qos_lprod
 
 # Print debug information
 echo "=== Job Information ==="
