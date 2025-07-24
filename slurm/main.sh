@@ -28,7 +28,6 @@ sbatch <<EOT
 #SBATCH --job-name="splitlearning_${str}"
 #SBATCH --out="./sout/log/splitlearning_${str}.out"
 #SBATCH --error="./sout/err/splitlearning_${str}.err"
-#SBATCH -qos boost_qos_lprod
 
 # Print debug information
 echo "=== Job Information ==="
