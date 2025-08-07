@@ -208,7 +208,7 @@ def main(cfg):
     # Get datasets
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
     val_dataset = hydra.utils.instantiate(cfg.dataset.test)
-
+    
     # Set seed for reproducibility
     for seed in [42, 51, 114]:
 
