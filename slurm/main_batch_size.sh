@@ -53,9 +53,9 @@ module load cuda
 conda init
 #conda activate ood
 
-echo "Activating conda environment 'ood'..."
-source activate ood || {
-    echo "ERROR: Failed to activate conda environment 'ood'"
+echo "Activating conda environment 'split_learning'..."
+source activate split_learning || {
+    echo "ERROR: Failed to activate conda environment 'split_learning'"
     echo "Available environments:"
     conda env list
     exit 1
