@@ -25,15 +25,15 @@ sbatch <<EOT
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --job-name="splitlearning_batch_size_${str}"
-#SBATCH --out="./sout/log/splitlearning_batch_size_${str}.out"
-#SBATCH --error="./sout/err/splitlearning_batch_size_${str}.err"
+#SBATCH --job-name="splitlearning_${str}"
+#SBATCH --out="./sout/log/splitlearning_${str}.out"
+#SBATCH --error="./sout/err/splitlearning_${str}.err"
 
 # Print debug information
 echo "=== Job Information ==="
 echo "NODELIST="\${SLURM_NODELIST}
 echo "Job ID: "\${SLURM_JOB_ID}
-echo "Parameters: ${1} ${2} ${3} ${4} ${5}"
+echo "Parameters: ${1} ${2} ${3} ${4}"
 echo "Working directory: \$(pwd)"
 echo "Date: \$(date)"
 echo "========================"
@@ -47,11 +47,12 @@ cd /leonardo/home/userexternal/jpomponi/Split-Learning || {
 
 # Load modules
 echo "Loading modules..."
-module load anaconda3
+#module load anaconda3
 module load cuda
 
 conda init
-#conda activate ood
+# conda activate ood
+
 
 echo "Activating conda environment 'split_learning'..."
 source activate split_learning || {
@@ -61,14 +62,26 @@ source activate split_learning || {
     exit 1
 }
 
-if [ ${1} = 'proposal' ]; then
-  srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} dataset.batch_size=${5} method.parameters.pooling=${6:-attention} hydra=batch_ablation
-elif [ ${1} = 'base' ]; then
-  srun python main.py method=${1} dataset=${3} model=${2} hydra=batch_ablation dataset.batch_size=${5}
+if [ ${1} = 'base' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} hyperparameters.experiment_name=dev
+elif [ ${1} = 'bottlenet' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4} hyperparameters.experiment_name=dev
+elif [ ${1} = 'c3-sl' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.R=${4} hyperparameters.experiment_name=dev
+elif [ ${1} = 'proposal' ]; then
+srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} method.parameters.pooling=${5:-attention} hyperparameters.experiment_name=dev
+#  fi
+elif [ ${1} = 'quantization' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.n_bits=${4} hyperparameters.experiment_name=dev
+elif [ ${1} = 'random_top_k' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.rate=${4} hyperparameters.experiment_name=dev
+elif [ ${1} = 'top_k' ]; then
+  srun python main_dev.py method=${1} dataset=${3} model=${2} method.parameters.rate=${4} hyperparameters.experiment_name=dev
 else
 	echo "ERROR: method not recognized"
   exit 1
 fi
+
 
 # Check exit status
 if [ \$? -eq 0 ]; then

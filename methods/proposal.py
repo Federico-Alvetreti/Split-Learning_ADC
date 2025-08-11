@@ -165,15 +165,27 @@ class model(nn.Module):
                  model: VisionTransformer,
                  channel,
                  split_index,
-                 compression,
+                 desired_compression=None,
+                 batch_compression=None,
+                 token_compressions=None,
                  pooling='attention',
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        if desired_compression is None:
+            assert batch_compression is not None and token_compressions is not None, \
+                'Both batch_compression and token_compressions must be not None'
+            compression = (batch_compression, token_compressions)
+            self.compression_ratio = batch_compression * token_compressions
+        else:
+            assert batch_compression is None and token_compressions is None, 'desired_compression must be not None'
+            compression = desired_compression
+            self.compression_ratio = desired_compression
+
         self.compressor_module = None
 
         # Store compression
-        self.compression = compression
+
 
         # Build model 
         self.model = self.build_model(model, channel, split_index, compression, pooling)
@@ -195,8 +207,11 @@ class model(nn.Module):
                     compression,
                     pooling):
         # Resolve compression knowing token_compression = batch_compression ** 4
-        batch_compression = compression ** (1 / 5)
-        token_compression = batch_compression ** 4
+        if isinstance(compression, tuple):
+            batch_compression, token_compression = compression
+        else:
+            batch_compression = compression ** (1 / 5)
+            token_compression = batch_compression ** 4
 
         # Wrap last block with our compression method
         model.blocks[split_index - 1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index - 1].attn)
@@ -215,10 +230,8 @@ class model(nn.Module):
 
         return model
 
-        # Forward
-
     def forward(self, x):
         batch_size = x.shape[0]
         if self.training:
-            self.communication += self.compression * batch_size
+            self.communication += self.compression_ratio * batch_size
         return self.model.forward(x)

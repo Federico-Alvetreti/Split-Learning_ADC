@@ -72,7 +72,7 @@ elif [ ${1} = 'proposal' ]; then
 #  if [ $# -eq 4 ]; then
 #    srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4}
 #  else
-srun python main.py method=${1} dataset=${3} model=${2} method.parameters.compression=${4} method.parameters.pooling=${5:-attention}
+srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} method.parameters.pooling=${5:-attention}
 #  fi
 elif [ ${1} = 'quantization' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.n_bits=${4}

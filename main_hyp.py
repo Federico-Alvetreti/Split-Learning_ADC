@@ -206,11 +206,13 @@ def main(cfg):
     max_communication = cfg.dataset.max_communication
 
     # Get datasets
-    train_dataset = hydra.utils.instantiate(cfg.dataset.train)
-    val_dataset = hydra.utils.instantiate(cfg.dataset.test)
-    
+    original_train_dataset = hydra.utils.instantiate(cfg.dataset.train)
+    # val_dataset = hydra.utils.instantiate(cfg.dataset.test)
+
     # Set seed for reproducibility
     for seed in [42, 51, 114]:
+
+        train_dataset, val_dataset = torch.utils.data.random_split(original_train_dataset, [0.8, 0.2])
 
         torch.manual_seed(seed)
 
@@ -223,7 +225,6 @@ def main(cfg):
 
         # Get channel
         channel = hydra.utils.instantiate(cfg.communication.channel)
-
 
         # Apply method to the model
         model = hydra.utils.instantiate(cfg.method.model,
@@ -244,7 +245,7 @@ def main(cfg):
         print(hydra_output_dir)
 
         if seed != 42:
-            hydra_output_dir = hydra_output_dir.replace('prova', f'prova_{seed}')
+            hydra_output_dir = hydra_output_dir.replace('dev_prova', f'dev_prova_{seed}')
             print(hydra_output_dir)
         else:
             continue

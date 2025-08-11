@@ -8,14 +8,6 @@ export HYDRA_FULL_ERROR=1
 export TQDM_LOG=1
 export TQDM_LOG_INTERVAL=100
 
-old="$IFS"
-IFS='_'
-str="$*"
-
-echo "${str}"
-
-IFS=$old
-
 sbatch <<EOT
 #!/bin/sh
 #SBATCH -A IscrC_AdvCMT
@@ -25,15 +17,15 @@ sbatch <<EOT
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --job-name="splitlearning_batch_size_${str}"
-#SBATCH --out="./sout/log/splitlearning_batch_size_${str}.out"
-#SBATCH --error="./sout/err/splitlearning_batch_size_${str}.err"
+#SBATCH --job-name="splitlearning_${1}_${2}_${3}"
+#SBATCH --out="./sout/log/splitlearning_${1}_${2}_${3}.out"
+#SBATCH --error="./sout/err/splitlearning_${1}_${2}_${3}.err"
 
 # Print debug information
 echo "=== Job Information ==="
 echo "NODELIST="\${SLURM_NODELIST}
 echo "Job ID: "\${SLURM_JOB_ID}
-echo "Parameters: ${1} ${2} ${3} ${4} ${5}"
+echo "Parameters: ${1} ${2} ${3}"
 echo "Working directory: \$(pwd)"
 echo "Date: \$(date)"
 echo "========================"
@@ -53,22 +45,16 @@ module load cuda
 conda init
 #conda activate ood
 
-echo "Activating conda environment 'split_learning'..."
-source activate split_learning || {
-    echo "ERROR: Failed to activate conda environment 'split_learning'"
+echo "Activating conda environment 'ood'..."
+source activate ood || {
+    echo "ERROR: Failed to activate conda environment 'ood'"
     echo "Available environments:"
     conda env list
     exit 1
 }
 
-if [ ${1} = 'proposal' ]; then
-  srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} dataset.batch_size=${5} method.parameters.pooling=${6:-attention} hydra=batch_ablation
-elif [ ${1} = 'base' ]; then
-  srun python main.py method=${1} dataset=${3} model=${2} hydra=batch_ablation dataset.batch_size=${5}
-else
-	echo "ERROR: method not recognized"
-  exit 1
-fi
+srun python main.py method=${1} dataset=${3} model=${2}
+
 
 # Check exit status
 if [ \$? -eq 0 ]; then
