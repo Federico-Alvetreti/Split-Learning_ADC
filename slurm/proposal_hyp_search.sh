@@ -62,7 +62,7 @@ source activate split_learning || {
     exit 1
 }
 
-srun python main_dev.py method='proposal' dataset=${2} model=${1} method.parameters.token_compression=${3} method.parameters.batch_compression=${4} hyperparameters.experiment_name=search
+srun python main_hyp.py method='proposal' dataset=${2} model=${1} method.parameters.token_compression=${3} method.parameters.batch_compression=${4} hyperparameters.experiment_name=search
 
 # Check exit status
 if [ \$? -eq 0 ]; then
