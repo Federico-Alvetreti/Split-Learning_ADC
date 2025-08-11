@@ -11,8 +11,9 @@ token_compressions=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1)
 #srun python main_dev.py method='proposal' dataset=${2} model=${1} method.parameters.token_compression=${3} method.parameters.token_compression=${4} hyperparameters.experiment_name=search
 
 # Grid-search the two hyper-parameters
-for batch_compression in "${batch_compressions[@]}"; do
-  for token_compression in "${token_compressions[@]}"; do
-    sbatch proposal_hyp_search.sh $model $dataset $token_compression $batch_compression
+for bp in "${batch_compressions[@]}"; do
+  for tp in "${token_compressions[@]}"; do
+    echo $tp $bp
+    sbatch proposal_hyp_search.sh $model $dataset $tp $bp
   done
 done
