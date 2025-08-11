@@ -1,6 +1,8 @@
 model:
   _target_: methods.proposal.model
-  compression: ${..parameters.compression}
+  compression: ${..parameters.desired_compression}
+  token_compression: ${..parameters.token_compression}
+  batch_compression: ${..parameters.batch_compression}
   pooling: ${..parameters.pooling}
 name: proposal
 parameters:
