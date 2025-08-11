@@ -14,6 +14,6 @@ token_compressions=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1)
 for bp in "${batch_compressions[@]}"; do
   for tp in "${token_compressions[@]}"; do
     echo $tp $bp
-    sbatch proposal_hyp_search.sh $model $dataset $tp $bp
+    sbatch slurm/proposal_hyp_search.sh $model $dataset $tp $bp
   done
 done
