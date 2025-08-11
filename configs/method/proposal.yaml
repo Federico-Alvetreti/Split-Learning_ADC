@@ -4,7 +4,9 @@ model:
   pooling: ${..parameters.pooling}
 name: proposal
 parameters:
-  compression: 0.2
+  desired_compression: null
+  token_compression: null
+  batch_compression: null
   pooling: cls
 #model:
 #  _target_: methods.proposal.NameOfClass
