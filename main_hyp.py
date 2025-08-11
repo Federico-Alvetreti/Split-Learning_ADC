@@ -27,7 +27,7 @@ OmegaConf.register_new_resolver("flatten_params", flatten_params)
 
 
 # Standard training phase 
-def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication):
+def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication, classes):
 
     if plot:
         print("\nTraining phase: ")
@@ -51,11 +51,9 @@ def training_phase(model, train_data_loader, loss, optimizer, device, plot, max_
         # Get batch predictions
         batch_predictions = model(batch_input)
 
-        
-
         # Get batch accuracy + handle batch compression for labels  
         if hasattr(model, "compressor_module"):
-            batch_labels = model.compressor_module.compress_labels(batch_labels, len(train_data_loader.dataset.classes))
+            batch_labels = model.compressor_module.compress_labels(batch_labels, len(classes))
             batch_accuracy = 0
         else:
             batch_accuracy = torch.sum(batch_labels == torch.argmax(batch_predictions, dim=1)).item() / batch_labels.shape[0]
@@ -125,7 +123,7 @@ def validation_phase(model, val_data_loader, loss, device, plot):
   return average_val_loss, average_val_accuracy
 
 # Standard training / validation cicle
-def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, hydra_output_dir, loss=torch.nn.CrossEntropyLoss(),  plot=True, save_model=True):
+def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_communication, device, hydra_output_dir, classes, loss=torch.nn.CrossEntropyLoss(), plot=True, save_model=True):
 
     # Lists to store results 
     train_losses, train_accuracies, val_losses, val_accuracies, communication_cost = [], [], [], [], []
@@ -141,7 +139,8 @@ def training_schedule(model, train_data_loader, val_data_loader, optimizer, max_
             print(f"\n\nEPOCH {epoch}")
 
         # Training and validation phases 
-        avg_train_loss, avg_train_accuracy = training_phase(model, train_data_loader, loss, optimizer, device, plot, max_communication)
+        avg_train_loss, avg_train_accuracy = training_phase(model, train_data_loader, loss, optimizer, device, plot,
+                                                            max_communication, classes=classes)
         avg_val_loss, avg_val_accuracy = validation_phase(model, val_data_loader, loss, device, plot)
 
         # Store results 
@@ -207,6 +206,7 @@ def main(cfg):
 
     # Get datasets
     original_train_dataset = hydra.utils.instantiate(cfg.dataset.train)
+    classes = original_train_dataset.classes
     # val_dataset = hydra.utils.instantiate(cfg.dataset.test)
 
     # Set seed for reproducibility
@@ -256,7 +256,7 @@ def main(cfg):
         os.makedirs(hydra_output_dir, exist_ok=True)
         # Train
         training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir,
-                          save_model=seed == 42)
+                          save_model=seed == 42, classes=classes)
 
     return
 
