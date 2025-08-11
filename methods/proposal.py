@@ -167,18 +167,18 @@ class model(nn.Module):
                  split_index,
                  desired_compression=None,
                  batch_compression=None,
-                 token_compressions=None,
+                 token_compression=None,
                  pooling='attention',
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         if desired_compression is None:
-            assert batch_compression is not None and token_compressions is not None, \
+            assert batch_compression is not None and token_compression is not None, \
                 'Both batch_compression and token_compressions must be not None'
-            compression = (batch_compression, token_compressions)
-            self.compression_ratio = batch_compression * token_compressions
+            compression = (batch_compression, token_compression)
+            self.compression_ratio = batch_compression * token_compression
         else:
-            assert batch_compression is None and token_compressions is None, 'desired_compression must be not None'
+            assert batch_compression is None and token_compression is None, 'desired_compression must be not None'
             compression = desired_compression
             self.compression_ratio = desired_compression
 
