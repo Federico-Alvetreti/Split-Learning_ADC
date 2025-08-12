@@ -33,7 +33,7 @@ sbatch <<EOT
 echo "=== Job Information ==="
 echo "NODELIST="\${SLURM_NODELIST}
 echo "Job ID: "\${SLURM_JOB_ID}
-echo "Parameters: ${1} ${2} ${3} ${4}"
+echo "Parameters: ${str}"
 echo "Working directory: \$(pwd)"
 echo "Date: \$(date)"
 echo "========================"
