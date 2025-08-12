@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+model=${1:-"deit_tiny_patch16_224"}
+dataset=${2:-"cifar_100"}
+compression=${3:-0.5}
+method=${4:-"proposal"}
+
+#models=("deit_tiny_patch16_224" "deit_small_patch16_224")
+#datasets=("cifar_100" "food_101")
+
+pool=(2 3 5 6 10)
+for ppl in "${pool[@]}"; do
+    sbatch  slurm/main_splitpoint.sh $method $model $dataset $compression $ppl
+done
