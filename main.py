@@ -208,9 +208,13 @@ def main(cfg):
     # Get datasets
     train_dataset = hydra.utils.instantiate(cfg.dataset.train)
     val_dataset = hydra.utils.instantiate(cfg.dataset.test)
-    
+
+    seeds = cfg.hyperparameters.get('seeds', [42, 51, 114])
+    if not isinstance(seeds, list):
+        seeds = [seeds]
+
     # Set seed for reproducibility
-    for seed in [42, 51, 114]:
+    for seed in seeds:
 
         torch.manual_seed(seed)
 
@@ -243,11 +247,13 @@ def main(cfg):
 
         print(hydra_output_dir)
 
+        # legacy compatibility
         if seed != 42:
             hydra_output_dir = hydra_output_dir.replace('prova', f'prova_{seed}')
             print(hydra_output_dir)
         else:
-            continue
+            if os.path.exists(os.path.join(hydra_output_dir, "training_results.json")):
+                continue
 
         if os.path.exists(os.path.join(hydra_output_dir, "final_training_results.json")):
             continue
@@ -255,7 +261,7 @@ def main(cfg):
         os.makedirs(hydra_output_dir, exist_ok=True)
         # Train
         training_schedule(model, train_dataloader, val_dataloader, optimizer, max_communication, device, hydra_output_dir,
-                          save_model=seed == 42)
+                          save_model=seed == seeds[0])
 
     return
 
