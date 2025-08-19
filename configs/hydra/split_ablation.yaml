@@ -1,5 +1,5 @@
 run:
-  dir: ${core.results_path}/${hyperparameters.experiment_name}_${hyperparameters.split_index}/${dataset.name}_${dataset.batch_size}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
+  dir: ${core.results_path}/split_exp/${hyperparameters.experiment_name}_split_${hyperparameters.split_index}/${dataset.name}_${dataset.batch_size}/${model.model_name}/${method.name}/communication=${communication.name}/params=${method.parameters}
 job:
   chdir: No
   config:
@@ -11,4 +11,3 @@ job:
 job_logging:
   root:
     level: WARNING
-
