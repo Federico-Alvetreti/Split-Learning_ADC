@@ -69,7 +69,7 @@ elif [ ${1} = 'bottlenet' ]; then
 elif [ ${1} = 'c3-sl' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.R=${4} hyperparameters.split_index=${5} hydra=split_ablation
 elif [ ${1} = 'proposal' ]; then
-srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} method.parameters.pooling=${6:-attention} hydra=split_ablation
+srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} hyperparameters.split_index=${5} method.parameters.pooling=${6:-attention} hydra=split_ablation
 elif [ ${1} = 'quantization' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.n_bits=${4} hyperparameters.split_index=${5} hydra=split_ablation
 elif [ ${1} = 'random_top_k' ]; then
