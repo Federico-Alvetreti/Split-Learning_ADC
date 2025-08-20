@@ -241,7 +241,7 @@ def main(cfg):
         # Print model, dataset and method
         print(f"\n\nTraining seed {seed}: \n\n  --model: {cfg.model.model_name} \n  --dataset: {cfg.dataset.name} \n  --communication: {cfg.communication.name} \n  --method: {cfg.method.name} \n  --compression: {model.compression_ratio} \n")
         print(f"\n\nParameters:  {cfg.method.parameters}\n\n  ")
-
+        
         # Get the current Hydra output directory
         hydra_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
