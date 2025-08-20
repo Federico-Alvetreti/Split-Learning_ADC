@@ -16,7 +16,7 @@ class model(nn.Module):
         self.model = self.build_model(model, channel, split_index)
 
         # Store compression 
-        self.compression = 1
+        self.compression_ratio = 1
 
         # Store channel 
         self.channel = channel
@@ -44,5 +44,5 @@ class model(nn.Module):
     def forward(self, x):
         batch_size = x.shape[0]
         if self.training: 
-            self.communication += self.compression * batch_size
+            self.communication += self.compression_ratio * batch_size
         return self.model.forward(x)
