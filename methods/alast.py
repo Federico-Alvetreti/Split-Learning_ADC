@@ -180,7 +180,6 @@ class model(nn.Module):
                 param.requires_grad = i in sampled_indices  # Only sampled blocks remain trainable
         
         return 
-    
 
     # Forward 
     def forward(self, x):
