@@ -65,6 +65,8 @@ if [ ${1} = 'proposal' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.desired_compression=${4} dataset.batch_size=${5} method.parameters.pooling=${6:-attention} hydra=batch_ablation
 elif [ ${1} = 'base' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} hydra=batch_ablation dataset.batch_size=${5}
+elif [ ${1} = 'c3-sl' ]; then
+  srun python main.py method=${1} dataset=${3} model=${2} method.parameters.R=${4}
 else
 	echo "ERROR: method not recognized"
   exit 1
