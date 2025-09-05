@@ -81,7 +81,7 @@ elif [ ${1} = 'random_top_k' ]; then
 elif [ ${1} = 'top_k' ]; then
   srun python main.py method=${1} dataset=${3} model=${2} method.parameters.rate=${4}
 else
-	echo "ERROR: method not recognized"
+	echo "ERROR: method ${1} not recognized"
   exit 1
 fi
 
