@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# bash slurm/ablations/batch_size.sh deit_tiny_patch16_224 food_101 [2, 4, 8, 16, 32] c3-sl
+# bash slurm/ablations/batch_size.sh deit_small_patch16_224 food_101 [2, 4, 8, 16, 32] c3-sl
+# bash slurm/ablations/batch_size.sh deit_small_patch16_224 cifar_100 [2, 4, 8, 16, 32] c3-sl
+# bash slurm/ablations/batch_size.sh deit_small_patch16_224 cifar_100 [2, 4, 8, 16, 32] c3-sl
+
+
 model=${1:-"deit_tiny_patch16_224"}
 dataset=${2:-"cifar_100"}
 compression=${3:-0.5}

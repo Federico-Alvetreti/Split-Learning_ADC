@@ -12,3 +12,5 @@ for model in "${models[@]}"; do
           done
     done
 done
+
+# for R in "${(2 4 8 16 32)}";
