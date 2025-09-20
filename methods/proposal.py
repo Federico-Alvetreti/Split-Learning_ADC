@@ -210,8 +210,8 @@ class model(nn.Module):
         if isinstance(compression, tuple):
             batch_compression, token_compression = compression
         else:
-            batch_compression = compression ** (1 / 5)
-            token_compression = batch_compression ** 4
+            batch_compression = compression ** (1 / 2)
+            token_compression = compression ** (1 / 2)
 
         # Wrap last block with our compression method
         model.blocks[split_index - 1].attn = Store_Class_Token_Attn_Wrapper(model.blocks[split_index - 1].attn)
